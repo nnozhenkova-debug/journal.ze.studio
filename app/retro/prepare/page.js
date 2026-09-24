@@ -14,7 +14,7 @@ export default async function PrepareRetroPage({ searchParams }) {
 
   return (
     <div className="shell">
-      <div className="section">
+      <div className="section has-action-footer">
         <PrepareForm
           templates={RETRO_TEMPLATES}
           projects={projects}

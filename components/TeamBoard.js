@@ -50,12 +50,12 @@ export default function TeamBoard({ team, isAdmin }) {
 
   return (
     <div>
-      <div className="team-header">
+      <div className="page-header">
         <div>
           <h1 className="h1">Команда<span style={{ color: 'var(--gold)' }}>.</span></h1>
           <p className="h1-sub">{team.length} участников студии</p>
         </div>
-        <div className="team-actions">
+        <div className="page-actions">
           <input
             className="search-pill"
             placeholder="Поиск по имени…"

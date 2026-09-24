@@ -12,7 +12,7 @@ export default async function ProfilePage() {
       <Header profile={profile} breadcrumb={[{ label: 'Журнал студии', href: '/' }, { label: 'Профиль' }]} />
       <div className="shell">
         <div className="section" style={{ maxWidth: 620 }}>
-          <h1 className="h1">Профиль.</h1>
+          <h1 className="h1">Профиль<span style={{ color: 'var(--gold)' }}>.</span></h1>
           <p className="h1-sub" style={{ marginBottom: 24 }}>Личные настройки аккаунта</p>
           {profile ? <ProfileForm profile={profile} /> : <p>Не удалось загрузить профиль.</p>}
         </div>

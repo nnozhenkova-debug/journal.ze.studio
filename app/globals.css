@@ -354,6 +354,36 @@ textarea {
   flex-wrap: wrap;
   gap: var(--space-4) var(--space-5);
 }
+.calendar-month-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 6px;
+}
+.calendar-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--near);
+  font-size: 13px;
+  background: var(--white);
+}
+.calendar-nav-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.calendar-nav-today {
+  font-size: 12px;
+  color: var(--gray-2);
+  margin-left: 4px;
+}
+.calendar-nav-today:hover {
+  color: var(--gold);
+}
 .hero-legend {
   display: flex;
   align-items: center;
@@ -399,9 +429,14 @@ textarea {
 }
 .retro-day {
   position: relative;
-  min-height: 72px;
+  height: 96px;
   padding: var(--space-2) 10px;
   border-bottom: 1px solid var(--divider);
+  overflow: visible;
+}
+.retro-day-inner {
+  height: 100%;
+  overflow: hidden;
 }
 .retro-day:not(:nth-child(7n + 1)) {
   border-left: 1px solid var(--divider);
@@ -447,6 +482,50 @@ textarea {
 }
 .retro-badge.is-done {
   opacity: 0.55;
+}
+
+.retro-day-more {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gray-2);
+  cursor: default;
+}
+.retro-day-popover {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 6px;
+  right: 6px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(17, 17, 17, 0.12);
+  padding: var(--space-2) 10px;
+}
+.retro-day-popover .retro-day-popover-date {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gray-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.retro-day-popover .retro-badge {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.retro-day:hover .retro-day-popover,
+.retro-day:focus-within .retro-day-popover {
+  display: block;
+}
+/* Последние две строки календаря — иначе поповер норовит уйти за нижний край. */
+.retro-calendar-row:nth-last-child(-n + 2) .retro-day-popover {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 
 /* ---------- Template picker (right column) ---------- */
@@ -805,6 +884,11 @@ textarea {
   background: var(--gold);
 }
 
+/* Правило выравнивания для двухколоночных экранов: обе колонки строят
+   карточки из одного и того же блока (.side-card + .side-card-head) и
+   складывают их с одинаковым отступом (--space-6) — так заголовки блоков
+   в левой и правой колонке всегда на одной высоте, а не «плавают» каждый
+   по-своему. */
 .detail-columns {
   margin-top: var(--space-12);
   display: grid;
@@ -815,10 +899,7 @@ textarea {
 .detail-col {
   display: flex;
   flex-direction: column;
-  gap: 40px;
-}
-.detail-col .record-card {
-  margin-top: 14px;
+  gap: var(--space-6);
 }
 .side-col {
   display: flex;
@@ -832,6 +913,10 @@ textarea {
   overflow: hidden;
 }
 .side-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   padding: 18px 22px;
   border-bottom: 1px solid var(--divider);
 }
@@ -1105,16 +1190,33 @@ textarea {
   color: var(--gray-1);
   margin-top: 4px;
 }
-.retro-footer {
-  position: sticky;
+/* ---------- Нижняя плашка с действиями ----------
+   Правило: везде, где есть панель кнопок внизу страницы, она прибита
+   к нижнему краю экрана (position: fixed), а не "плывёт" в потоке —
+   иначе на страницах с малым количеством контента она повисает
+   посередине, а не у края. Ширина и отступы совпадают с .shell,
+   чтобы кнопки были на одной вертикали с остальным контентом. */
+.retro-footer,
+.prepare-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
   bottom: 0;
+  z-index: 30;
+  max-width: 1071px;
+  margin: 0 auto;
   background: var(--white);
   border-top: 1px solid var(--border);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -8px 24px rgba(17, 17, 17, 0.06);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4) var(--space-12);
-  margin: var(--space-8) calc(var(--space-12) * -1) 0;
+}
+/* Место под плашку, чтобы контент не оказался под ней. */
+.has-action-footer {
+  padding-bottom: 92px;
 }
 .retro-footer-meta {
   font-size: 13px;
@@ -1385,14 +1487,18 @@ textarea {
   margin-top: var(--space-3);
 }
 
-/* ---------- Team ---------- */
-.team-header {
+/* ---------- Заголовок раздела ----------
+   Единый паттерн для всех страниц разделов (Проекты, Проблемы, Журнал,
+   Команда, Профиль): h1 + h1-sub слева, при необходимости — действия
+   справа. Раньше на каждой странице был свой размер/структура — теперь
+   везде один и тот же .page-header. */
+.page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
 }
-.team-actions {
+.page-actions {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -1735,15 +1841,4 @@ textarea {
 }
 .context-textarea::placeholder {
   color: rgba(17, 17, 17, 0.5);
-}
-.prepare-footer {
-  position: sticky;
-  bottom: 0;
-  background: var(--white);
-  border-top: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4) var(--space-12);
-  margin: var(--space-10) calc(var(--space-12) * -1) 0;
 }

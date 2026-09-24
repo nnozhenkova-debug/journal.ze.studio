@@ -59,15 +59,14 @@ export default async function ProjectPage({ params }) {
       <Header profile={profile} breadcrumb={[{ label: 'Журнал студии', href: '/' }, { label: project.name }]} />
       <div className="shell">
         <div className="section">
-          <div className="micro-label">Проект</div>
           <div className="project-head">
             <span className="project-swatch" style={{ background: pal.bg, borderColor: pal.border }} />
-            <h1 className="page-heading">
+            <h1 className="h1">
               {project.name}
               <span style={{ color: 'var(--gold)' }}>.</span>
             </h1>
           </div>
-          <p className="project-sub">
+          <p className="h1-sub">
             {project.client && <>Клиент: {project.client} · </>}
             Статус: {PROJECT_STATUS_LABEL[project.status] || project.status}
             {' · '}Ответственный: {responsible?.display_name || 'Не назначен'}
@@ -111,70 +110,66 @@ export default async function ProjectPage({ params }) {
 
           <div className="detail-columns">
             <div className="detail-col">
-              <div>
-                <div className="record-section-header">
+              <div className="side-card">
+                <div className="side-card-head">
                   <span className="micro-label">Ретро по проекту</span>
                   <span className="record-see-all" style={{ fontSize: 11 }}>
                     {retros.length} {pluralRu(retros.length, 'сессия', 'сессии', 'сессий')}
                   </span>
                 </div>
                 {retros.length === 0 ? (
-                  <div className="record-card">
+                  <div style={{ padding: '14px 22px' }}>
                     <EmptyState cta={{ label: 'Начать первое ретро →', href: `/retro/prepare?project=${project.id}` }}>
                       Ретро по этому проекту ещё не проводились
                     </EmptyState>
                   </div>
                 ) : (
-                  <div className="record-card card">
-                    {retros.map((r) => {
-                      const done = r.status === 'completed';
-                      const shortTitle = r.title.replace(/^Ретро:\s*/, '');
-                      const names = r.participantNames.map(shortName).join(', ');
-                      return (
-                        <Link key={r.id} href={`/retro/${r.id}`} className="table-row card-row">
-                          <span className="event-dot" style={{ background: done ? '#22a547' : '#aaaaaa' }} />
-                          <div>
-                            <div className="row-title">{RETRO_STATUS_LABEL[r.status] || r.status} · {shortTitle}</div>
-                            <div className="row-sub">
-                              {dayMonthShort(r.scheduled_date)}
-                              {names && ` · ${names}`}
-                            </div>
+                  retros.map((r) => {
+                    const done = r.status === 'completed';
+                    const shortTitle = r.title.replace(/^Ретро:\s*/, '');
+                    const names = r.participantNames.map(shortName).join(', ');
+                    return (
+                      <Link key={r.id} href={`/retro/${r.id}`} className="table-row card-row">
+                        <span className="event-dot" style={{ background: done ? '#22a547' : '#aaaaaa' }} />
+                        <div>
+                          <div className="row-title">{RETRO_STATUS_LABEL[r.status] || r.status} · {shortTitle}</div>
+                          <div className="row-sub">
+                            {dayMonthShort(r.scheduled_date)}
+                            {names && ` · ${names}`}
                           </div>
-                          <span className="row-meta">→</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
+                        </div>
+                        <span className="row-meta">→</span>
+                      </Link>
+                    );
+                  })
                 )}
               </div>
 
-              <div>
-                <div className="record-section-header">
-                  <div className="record-section-title">
-                    <span className="micro-label">Открытые проблемы</span>
-                    {issues.length > 0 && <span className="record-count">{issues.length}</span>}
-                  </div>
+              <div className="side-card">
+                <div className="side-card-head">
+                  <span className="micro-label">Открытые проблемы</span>
+                  {issues.length > 0 && <span className="record-count">{issues.length}</span>}
                 </div>
                 {issues.length === 0 ? (
-                  <div className="record-card"><EmptyState>Открытых проблем нет — всё под контролем</EmptyState></div>
-                ) : (
-                  <div className="record-card card">
-                    {issues.map((issue) => (
-                      <Link key={issue.id} href="/issues" className="table-row card-row">
-                        <span className={`pill ${SEVERITY_PILL_CLASS[issue.severity] || 'pill-neutral'}`}>
-                          {SEVERITY_LABEL[issue.severity]}
-                        </span>
-                        <div>
-                          <div className="row-title">{issue.title}</div>
-                          <div className="row-sub">
-                            {'Ответственный: '}
-                            {issue.responsible_id ? 'Назначен' : 'Не назначен'}
-                          </div>
-                        </div>
-                        <span className="row-meta">{daysAgoLabel(issue.created_at)} →</span>
-                      </Link>
-                    ))}
+                  <div style={{ padding: '14px 22px' }}>
+                    <EmptyState>Открытых проблем нет — всё под контролем</EmptyState>
                   </div>
+                ) : (
+                  issues.map((issue) => (
+                    <Link key={issue.id} href="/issues" className="table-row card-row">
+                      <span className={`pill ${SEVERITY_PILL_CLASS[issue.severity] || 'pill-neutral'}`}>
+                        {SEVERITY_LABEL[issue.severity]}
+                      </span>
+                      <div>
+                        <div className="row-title">{issue.title}</div>
+                        <div className="row-sub">
+                          {'Ответственный: '}
+                          {issue.responsible_id ? 'Назначен' : 'Не назначен'}
+                        </div>
+                      </div>
+                      <span className="row-meta">{daysAgoLabel(issue.created_at)} →</span>
+                    </Link>
+                  ))
                 )}
               </div>
             </div>

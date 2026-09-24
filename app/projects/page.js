@@ -3,6 +3,7 @@ import Header from '../../components/Header';
 import EmptyState from '../../components/EmptyState';
 import { getCurrentProfile, listProjects } from '../../lib/data';
 import { PROJECT_COLOR_HEX } from '../../lib/retro-constants';
+import { pluralRu } from '../../lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +15,12 @@ export default async function ProjectsPage() {
       <Header profile={profile} breadcrumb={[{ label: 'Журнал', href: '/' }, { label: 'Проекты' }]} />
       <div className="shell">
         <div className="section">
-          <div className="micro-label" style={{ marginBottom: 10 }}>Проекты</div>
-          <h1 className="h1" style={{ fontSize: 28, marginBottom: 24 }}>Активные проекты</h1>
+          <div className="page-header" style={{ marginBottom: 24 }}>
+            <div>
+              <h1 className="h1">Проекты<span style={{ color: 'var(--gold)' }}>.</span></h1>
+              <p className="h1-sub">{projects.length} {pluralRu(projects.length, 'активный проект', 'активных проекта', 'активных проектов')}</p>
+            </div>
+          </div>
 
           {projects.length === 0 ? (
             <EmptyState>Активных проектов пока нет.</EmptyState>

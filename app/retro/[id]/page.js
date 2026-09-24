@@ -27,7 +27,7 @@ export default async function RetroSessionPage({ params }) {
 
   return (
     <div className="shell">
-      <div className="section">
+      <div className={`section${retro.status === 'in_progress' ? ' has-action-footer' : ''}`}>
         <RetroSession
           retro={retro}
           template={template}

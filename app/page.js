@@ -24,6 +24,19 @@ const WEEKDAYS = [
   { label: 'Вс', weekend: true },
 ];
 
+function RetroBadge({ retro }) {
+  const pal = PROJECT_PALETTE[retro.projects?.color_key] || PROJECT_PALETTE.slate;
+  const done = retro.status === 'completed';
+  return (
+    <span
+      className={`retro-badge${done ? ' is-done' : ''}`}
+      style={{ background: pal.bg, borderColor: pal.border, color: pal.fg }}
+    >
+      {done ? '✓ ' : ''}{retro.title.replace(/^Ретро:\s*/, '')}
+    </span>
+  );
+}
+
 function eventTimeLabel(dateStr) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -36,16 +49,35 @@ function eventTimeLabel(dateStr) {
   return `${weekday}, ${time}`;
 }
 
-export default async function Page() {
+const VISIBLE_RETROS_PER_DAY = 2;
+
+function parseMonthParam(value) {
+  if (value && /^\d{4}-\d{2}$/.test(value)) {
+    const [y, m] = value.split('-').map(Number);
+    if (m >= 1 && m <= 12) return { year: y, month: m - 1 };
+  }
+  return null;
+}
+
+function monthParam(year, month) {
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
+export default async function Page({ searchParams }) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  const viewed = parseMonthParam(searchParams?.month) || { year: now.getFullYear(), month: now.getMonth() };
+  const { year, month } = viewed;
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+
   const weeks = buildMonthWeeks(year, month);
   const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
   const lastDay = new Date(year, month + 1, 0).getDate();
   const to = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-  const { month: monthName, year: yearLabel } = monthYearParts(now);
+  const viewedDate = new Date(year, month, 1);
+  const { month: monthName, year: yearLabel } = monthYearParts(viewedDate);
+  const prevMonth = new Date(year, month - 1, 1);
+  const nextMonth = new Date(year, month + 1, 1);
 
   const [profile, issues, events, retros, projects] = await Promise.all([
     getCurrentProfile(),
@@ -71,11 +103,22 @@ export default async function Page() {
           <div className="hero-grid">
             <div>
               <div className="hero-head">
-                <h1 className="h1">
-                  {monthName}
-                  <br />
-                  <span style={{ color: 'var(--gold)' }}>{yearLabel}</span>
-                </h1>
+                <div>
+                  <div className="calendar-month-nav">
+                    <Link href={`/?month=${monthParam(prevMonth.getFullYear(), prevMonth.getMonth())}`} className="calendar-nav-btn" aria-label="Предыдущий месяц">
+                      ←
+                    </Link>
+                    <Link href={`/?month=${monthParam(nextMonth.getFullYear(), nextMonth.getMonth())}`} className="calendar-nav-btn" aria-label="Следующий месяц">
+                      →
+                    </Link>
+                    {!isCurrentMonth && <Link href="/" className="calendar-nav-today">Сегодня</Link>}
+                  </div>
+                  <h1 className="h1">
+                    {monthName}
+                    <br />
+                    <span style={{ color: 'var(--gold)' }}>{yearLabel}</span>
+                  </h1>
+                </div>
                 <div className="hero-legend">
                   {projects.map((p) => {
                     const pal = PROJECT_PALETTE[p.color_key] || PROJECT_PALETTE.slate;
@@ -108,26 +151,42 @@ export default async function Page() {
                       if (!inMonth) classes.push('is-out');
                       if (isWeekend) classes.push('is-weekend');
                       if (isToday) classes.push('is-today');
+                      const hasOverflow = dayRetros.length > VISIBLE_RETROS_PER_DAY;
+                      // Показываем максимум VISIBLE_RETROS_PER_DAY строк в ячейке: если ретро
+                      // больше, последняя строка — не бейдж, а чип «+N ещё», чтобы ячейка
+                      // никогда не росла по высоте и не ломала сетку недели.
+                      const shownRetros = hasOverflow
+                        ? dayRetros.slice(0, VISIBLE_RETROS_PER_DAY - 1)
+                        : dayRetros;
                       return (
                         <div key={di} className={classes.join(' ')}>
-                          {isToday ? (
-                            <span className="daynum-badge">{d.getDate()}</span>
-                          ) : (
-                            <span className="daynum">{d.getDate()}</span>
-                          )}
-                          {inMonth && dayRetros.map((r) => {
-                            const pal = PROJECT_PALETTE[r.projects?.color_key] || PROJECT_PALETTE.slate;
-                            const done = r.status === 'completed';
-                            return (
-                              <span
-                                key={r.id}
-                                className={`retro-badge${done ? ' is-done' : ''}`}
-                                style={{ background: pal.bg, borderColor: pal.border, color: pal.fg }}
-                              >
-                                {done ? '✓ ' : ''}{r.title.replace(/^Ретро:\s*/, '')}
+                          <div className="retro-day-inner">
+                            {isToday ? (
+                              <span className="daynum-badge">{d.getDate()}</span>
+                            ) : (
+                              <span className="daynum">{d.getDate()}</span>
+                            )}
+                            {inMonth && shownRetros.length > 0 && (
+                              <div className="retro-day-badges">
+                                {shownRetros.map((r) => (
+                                  <RetroBadge key={r.id} retro={r} />
+                                ))}
+                              </div>
+                            )}
+                            {inMonth && hasOverflow && (
+                              <span className="retro-day-more">
+                                +{dayRetros.length - shownRetros.length} ещё
                               </span>
-                            );
-                          })}
+                            )}
+                          </div>
+                          {inMonth && hasOverflow && (
+                            <div className="retro-day-popover">
+                              <div className="retro-day-popover-date">{d.getDate()} {monthName.toLowerCase()}</div>
+                              {dayRetros.map((r) => (
+                                <RetroBadge key={r.id} retro={r} />
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -138,7 +197,7 @@ export default async function Page() {
               {retros.length === 0 && (
                 <div style={{ marginTop: 20, maxWidth: 330 }}>
                   <EmptyState cta={{ label: 'Запланировать ретро →', href: '/retro/prepare' }}>
-                    В {monthPrepositional(now)} пока нет запланированных ретро
+                    В {monthPrepositional(viewedDate)} пока нет запланированных ретро
                   </EmptyState>
                 </div>
               )}

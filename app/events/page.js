@@ -18,9 +18,12 @@ export default async function EventsPage() {
       <Header profile={profile} breadcrumb={[{ label: 'Журнал студии', href: '/' }, { label: 'Лента событий' }]} />
       <div className="shell">
         <div className="section">
-          <div className="micro-label" style={{ marginBottom: 6 }}>Журнал студии</div>
-          <h1 className="page-heading">Лента<span style={{ color: 'var(--gold)' }}>.</span></h1>
-          <p className="page-sub">за последние 30 дней</p>
+          <div className="page-header">
+            <div>
+              <h1 className="h1">Лента<span style={{ color: 'var(--gold)' }}>.</span></h1>
+              <p className="h1-sub">за последние 30 дней</p>
+            </div>
+          </div>
 
           <EventsBoard events={events} projects={projects} />
         </div>
