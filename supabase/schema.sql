@@ -396,6 +396,45 @@ exception when duplicate_object then null;
 end $$;
 
 -- =====================================================================
+-- 7b. Обновление CHECK-ограничений на уже существующих таблицах.
+-- "create table if not exists" не трогает ограничения таблицы, если она
+-- уже была создана раньше (например, до того как в список допустимых
+-- значений добавили новый вариант) — поэтому здесь они пересоздаются
+-- явно, чтобы всегда совпадать с этим файлом, а не с тем, что было
+-- в базе при первом запуске схемы.
+-- =====================================================================
+alter table public.profiles drop constraint if exists profiles_status_check;
+alter table public.profiles add constraint profiles_status_check check (status in ('active', 'invited'));
+
+alter table public.projects drop constraint if exists projects_color_key_check;
+alter table public.projects add constraint projects_color_key_check check (color_key in ('amber', 'violet', 'slate', 'teal', 'rose'));
+alter table public.projects drop constraint if exists projects_status_check;
+alter table public.projects add constraint projects_status_check check (status in ('active', 'archived'));
+alter table public.projects drop constraint if exists projects_budget_used_percent_check;
+alter table public.projects add constraint projects_budget_used_percent_check check (budget_used_percent between 0 and 100);
+
+alter table public.project_stages drop constraint if exists project_stages_state_check;
+alter table public.project_stages add constraint project_stages_state_check check (state in ('past', 'current', 'upcoming'));
+
+alter table public.retros drop constraint if exists retros_template_check;
+alter table public.retros add constraint retros_template_check check (template in (
+  'start_stop_continue', '4l', 'mad_sad_glad', 'sailboat', 'daki', 'team_energy'
+));
+alter table public.retros drop constraint if exists retros_status_check;
+alter table public.retros add constraint retros_status_check check (status in ('scheduled', 'in_progress', 'completed'));
+
+alter table public.retro_energy drop constraint if exists retro_energy_level_check;
+alter table public.retro_energy add constraint retro_energy_level_check check (level in ('high', 'neutral', 'low'));
+
+alter table public.issues drop constraint if exists issues_severity_check;
+alter table public.issues add constraint issues_severity_check check (severity in ('critical', 'important', 'watch'));
+alter table public.issues drop constraint if exists issues_status_check;
+alter table public.issues add constraint issues_status_check check (status in ('open', 'resolved'));
+
+alter table public.events drop constraint if exists events_type_check;
+alter table public.events add constraint events_type_check check (type in ('retro_completed', 'issue_resolved', 'issue_created', 'project_updated', 'note'));
+
+-- =====================================================================
 -- 8. Затравочные данные — можно удалить из интерфейса после того,
 --    как появятся настоящие проекты.
 -- =====================================================================
