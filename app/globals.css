@@ -342,15 +342,22 @@ textarea {
   padding-top: var(--space-5);
   padding-bottom: var(--space-12);
 }
+/* Оба «плеча» hero-grid начинаются с чистого блока (.retro-calendar слева,
+   .side-card справа) без какого-либо контента над ними внутри колонки —
+   поэтому их верхние края всегда совпадают (align-items: start), независимо
+   от разной высоты остального содержимого. Месяц/навигация/легенда — общий
+   заголовок НАД сеткой, а не часть одной из колонок. */
 .hero-grid {
   display: grid;
   grid-template-columns: 551px 360px;
   gap: 64px;
   align-items: start;
+  margin-top: var(--space-6);
 }
 .hero-head {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-4) var(--space-5);
 }
@@ -401,7 +408,6 @@ textarea {
 
 /* ---------- Retro calendar ---------- */
 .retro-calendar {
-  margin-top: var(--space-6);
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -529,11 +535,13 @@ textarea {
 }
 
 /* ---------- Template picker (right column) ---------- */
+.hero-template-body {
+  padding: 20px 22px 22px;
+}
 .template-heading {
   font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  margin-top: var(--space-4);
   margin-bottom: 4px;
 }
 .template-sub {

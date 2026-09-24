@@ -100,39 +100,39 @@ export default async function Page({ searchParams }) {
       <div className="shell">
         <div className="section hero-section">
           <div className="micro-label" style={{ marginBottom: 10 }}>Запланированные ретро</div>
+          <div className="hero-head">
+            <div>
+              <div className="calendar-month-nav">
+                <Link href={`/?month=${monthParam(prevMonth.getFullYear(), prevMonth.getMonth())}`} className="calendar-nav-btn" aria-label="Предыдущий месяц">
+                  ←
+                </Link>
+                <Link href={`/?month=${monthParam(nextMonth.getFullYear(), nextMonth.getMonth())}`} className="calendar-nav-btn" aria-label="Следующий месяц">
+                  →
+                </Link>
+                {!isCurrentMonth && <Link href="/" className="calendar-nav-today">Сегодня</Link>}
+              </div>
+              <h1 className="h1">
+                {monthName}
+                <br />
+                <span style={{ color: 'var(--gold)' }}>{yearLabel}</span>
+              </h1>
+            </div>
+            <div className="hero-legend">
+              {projects.map((p) => {
+                const pal = PROJECT_PALETTE[p.color_key] || PROJECT_PALETTE.slate;
+                return (
+                  <span key={p.id} className="legend-item">
+                    <span className="legend-swatch" style={{ background: pal.bg, borderColor: pal.border }} />
+                    {p.name}
+                  </span>
+                );
+              })}
+              <Link href="/projects" className="legend-link">Все проекты</Link>
+            </div>
+          </div>
+
           <div className="hero-grid">
             <div>
-              <div className="hero-head">
-                <div>
-                  <div className="calendar-month-nav">
-                    <Link href={`/?month=${monthParam(prevMonth.getFullYear(), prevMonth.getMonth())}`} className="calendar-nav-btn" aria-label="Предыдущий месяц">
-                      ←
-                    </Link>
-                    <Link href={`/?month=${monthParam(nextMonth.getFullYear(), nextMonth.getMonth())}`} className="calendar-nav-btn" aria-label="Следующий месяц">
-                      →
-                    </Link>
-                    {!isCurrentMonth && <Link href="/" className="calendar-nav-today">Сегодня</Link>}
-                  </div>
-                  <h1 className="h1">
-                    {monthName}
-                    <br />
-                    <span style={{ color: 'var(--gold)' }}>{yearLabel}</span>
-                  </h1>
-                </div>
-                <div className="hero-legend">
-                  {projects.map((p) => {
-                    const pal = PROJECT_PALETTE[p.color_key] || PROJECT_PALETTE.slate;
-                    return (
-                      <span key={p.id} className="legend-item">
-                        <span className="legend-swatch" style={{ background: pal.bg, borderColor: pal.border }} />
-                        {p.name}
-                      </span>
-                    );
-                  })}
-                  <Link href="/projects" className="legend-link">Все проекты</Link>
-                </div>
-              </div>
-
               <div className="retro-calendar">
                 <div className="retro-calendar-row">
                   {WEEKDAYS.map((w) => (
@@ -203,11 +203,15 @@ export default async function Page({ searchParams }) {
               )}
             </div>
 
-            <div>
-              <div className="micro-label">Провести ретро</div>
-              <div className="template-heading">Выберите шаблон</div>
-              <p className="template-sub">Результаты сохраняются автоматически — команда видит итоги сразу.</p>
-              <TemplatePicker templates={RETRO_TEMPLATES} />
+            <div className="side-card">
+              <div className="side-card-head">
+                <span className="micro-label">Провести ретро</span>
+              </div>
+              <div className="hero-template-body">
+                <div className="template-heading">Выберите шаблон</div>
+                <p className="template-sub">Результаты сохраняются автоматически — команда видит итоги сразу.</p>
+                <TemplatePicker templates={RETRO_TEMPLATES} />
+              </div>
             </div>
           </div>
         </div>
