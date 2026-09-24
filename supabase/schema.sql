@@ -19,6 +19,8 @@ alter table public.profiles enable row level security;
 alter table public.profiles add column if not exists role text default 'Участник команды';
 alter table public.profiles add column if not exists status text not null default 'active';
 alter table public.profiles add column if not exists notification_prefs jsonb not null default '{"retro_reminders": true, "issue_updates": true, "weekly_digest": false}'::jsonb;
+alter table public.profiles add column if not exists timezone text not null default 'Москва, UTC+3';
+alter table public.profiles add column if not exists is_admin boolean not null default false;
 
 drop policy if exists "profiles readable by authenticated" on public.profiles;
 create policy "profiles readable by authenticated"
@@ -74,9 +76,14 @@ create table if not exists public.projects (
   client text,
   color_key text not null default 'slate' check (color_key in ('amber', 'violet', 'slate', 'teal', 'rose')),
   status text not null default 'active' check (status in ('active', 'archived')),
+  responsible_id uuid references auth.users(id) on delete set null,
+  budget_used_percent integer check (budget_used_percent between 0 and 100),
   created_at timestamptz not null default now()
 );
 alter table public.projects enable row level security;
+
+alter table public.projects add column if not exists responsible_id uuid references auth.users(id) on delete set null;
+alter table public.projects add column if not exists budget_used_percent integer check (budget_used_percent between 0 and 100);
 
 drop policy if exists "projects readable by authenticated" on public.projects;
 create policy "projects readable by authenticated"
@@ -84,6 +91,26 @@ create policy "projects readable by authenticated"
 drop policy if exists "projects writable by authenticated" on public.projects;
 create policy "projects writable by authenticated"
   on public.projects for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+-- =====================================================================
+-- 3b. Участники проекта (для карточки «Команда проекта»)
+-- =====================================================================
+create table if not exists public.project_members (
+  project_id text not null references public.projects(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  sort_order integer not null default 0,
+  primary key (project_id, user_id)
+);
+alter table public.project_members enable row level security;
+
+drop policy if exists "project_members readable by authenticated" on public.project_members;
+create policy "project_members readable by authenticated"
+  on public.project_members for select using (auth.role() = 'authenticated');
+drop policy if exists "project_members writable by authenticated" on public.project_members;
+create policy "project_members writable by authenticated"
+  on public.project_members for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create index if not exists project_members_project_idx on public.project_members (project_id);
 
 -- =====================================================================
 -- 4. Этапы проекта
@@ -179,6 +206,55 @@ create policy "retro_notes writable by authenticated"
 
 create index if not exists retro_notes_retro_idx on public.retro_notes (retro_id);
 
+create table if not exists public.retro_action_items (
+  id uuid primary key default gen_random_uuid(),
+  retro_id uuid not null references public.retros(id) on delete cascade,
+  text text not null,
+  assignee_id uuid references auth.users(id) on delete set null,
+  due_date date,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table public.retro_action_items enable row level security;
+drop policy if exists "retro_action_items readable by authenticated" on public.retro_action_items;
+create policy "retro_action_items readable by authenticated"
+  on public.retro_action_items for select using (auth.role() = 'authenticated');
+drop policy if exists "retro_action_items writable by authenticated" on public.retro_action_items;
+create policy "retro_action_items writable by authenticated"
+  on public.retro_action_items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create index if not exists retro_action_items_retro_idx on public.retro_action_items (retro_id);
+
+do $$
+begin
+  alter publication supabase_realtime add table public.retro_action_items;
+exception when duplicate_object then null;
+end $$;
+
+-- Отметки уровня энергии участников — для шаблона «Энергия команды».
+create table if not exists public.retro_energy (
+  retro_id uuid not null references public.retros(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  level text not null check (level in ('high', 'neutral', 'low')),
+  updated_at timestamptz not null default now(),
+  primary key (retro_id, user_id)
+);
+alter table public.retro_energy enable row level security;
+drop policy if exists "retro_energy readable by authenticated" on public.retro_energy;
+create policy "retro_energy readable by authenticated"
+  on public.retro_energy for select using (auth.role() = 'authenticated');
+drop policy if exists "retro_energy writable by authenticated" on public.retro_energy;
+create policy "retro_energy writable by authenticated"
+  on public.retro_energy for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create index if not exists retro_energy_retro_idx on public.retro_energy (retro_id);
+
+do $$
+begin
+  alter publication supabase_realtime add table public.retro_energy;
+exception when duplicate_object then null;
+end $$;
+
 -- =====================================================================
 -- 6. Проблемы
 -- =====================================================================
@@ -211,7 +287,7 @@ create index if not exists issues_status_idx on public.issues (status);
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
   project_id text references public.projects(id) on delete set null,
-  type text not null check (type in ('retro_completed', 'issue_resolved', 'issue_created', 'note')),
+  type text not null check (type in ('retro_completed', 'issue_resolved', 'issue_created', 'project_updated', 'note')),
   title text not null,
   subtitle text,
   actor_id uuid references auth.users(id) on delete set null,
@@ -255,11 +331,11 @@ end $$;
 -- 8. Затравочные данные — можно удалить из интерфейса после того,
 --    как появятся настоящие проекты.
 -- =====================================================================
-insert into public.projects (id, name, shortcode, client, color_key)
+insert into public.projects (id, name, shortcode, client, color_key, budget_used_percent)
 values
-  ('avrora', 'Аврора', 'АВР', 'Внешний клиент', 'amber'),
-  ('nova', 'Нова', 'НОВ', 'Внешний клиент', 'violet'),
-  ('ze-studio', 'ze.studio', 'ZE', null, 'slate')
+  ('avrora', 'Аврора', 'АВР', 'Внешний клиент', 'amber', 65),
+  ('nova', 'Нова', 'НОВ', 'Внешний клиент', 'violet', 40),
+  ('ze-studio', 'ze.studio', 'ZE', null, 'slate', null)
 on conflict (id) do nothing;
 
 insert into public.project_stages (project_id, name, start_date, end_date, state, planned_minutes, actual_minutes, sort_order)
@@ -279,6 +355,13 @@ on conflict do nothing;
 insert into public.events (project_id, type, title, subtitle, created_at)
 values
   ('avrora', 'retro_completed', 'Завершено ретро «Спринт 14»', 'Участники: Аня К., Максим Р., Лена Б.', now() - interval '3 hours'),
-  ('avrora', 'issue_resolved', 'Проблема «Просрочены правки» помечена решённой', 'Изменил: Максим Р.', now() - interval '1 day'),
-  ('nova', 'retro_completed', 'Завершено ретро «Онбординг клиента»', 'Участники: Аня К., Лена Б.', now() - interval '4 days')
+  ('avrora', 'issue_resolved', 'Проблема «Просрочены правки» помечена решённой', 'Изменил: Максим Р.', now() - interval '5 hours'),
+  ('avrora', 'project_updated', 'Спринт 16 добавлен в план проекта «Аврора»', 'Изменил: Максим Р.', now() - interval '9 hours'),
+  ('nova', 'issue_created', 'Не назначен ответственный за бриф «Нова»', 'Автор: Аня К.', now() - interval '1 day'),
+  ('nova', 'project_updated', 'Ответственный по «Нова» изменён на Лену Б.', 'Изменил: Аня К.', now() - interval '1 day' - interval '2 hours'),
+  ('nova', 'retro_completed', 'Завершено ретро «Онбординг клиента»', 'Участники: Аня К., Лена Б.', now() - interval '3 days'),
+  ('avrora', 'project_updated', 'Бюджет проекта «Аврора» скорректирован', 'Изменил: Аня К.', now() - interval '3 days' - interval '4 hours'),
+  ('nova', 'project_updated', 'Добавлен участник Максим Р. в проект «Нова»', 'Изменил: Лена Б.', now() - interval '5 days'),
+  ('ze-studio', 'issue_resolved', 'Проблема «Счёт за сентябрь не выставлен клиенту» помечена решённой', 'Изменил: Аня К.', now() - interval '6 days'),
+  ('avrora', 'retro_completed', 'Завершено ретро «Спринт 13»', 'Участники: Аня К., Максим Р., Лена Б.', now() - interval '9 days')
 on conflict do nothing;

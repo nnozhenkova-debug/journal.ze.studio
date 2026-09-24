@@ -2,34 +2,39 @@
 
 import { useState } from 'react';
 import { createClient } from '../lib/supabase/client';
+import Avatar from './Avatar';
+import SignOutButton from './SignOutButton';
+import ErrorCard from './ErrorCard';
+import { TIMEZONES } from '../lib/retro-constants';
 
 const TOGGLES = [
-  { key: 'retro_reminders', label: 'Напоминания о ретро', hint: 'Сообщать за час до начала запланированной ретро-сессии.' },
-  { key: 'issue_updates', label: 'Обновления по проблемам', hint: 'Сообщать, когда проблема, за которую я отвечаю, меняет статус.' },
-  { key: 'weekly_digest', label: 'Еженедельный дайджест', hint: 'Короткое письмо по понедельникам с итогами прошлой недели.' },
+  { key: 'retro_reminders', label: 'Уведомления о ретро', hint: 'Напоминание за час до начала' },
+  { key: 'issue_updates', label: 'Открытые проблемы', hint: 'Когда появляется новая критичная проблема' },
+  { key: 'weekly_digest', label: 'Еженедельный дайджест', hint: 'Сводка по почте по понедельникам' },
 ];
 
 export default function ProfileForm({ profile }) {
   const [displayName, setDisplayName] = useState(profile.display_name || '');
   const [role, setRole] = useState(profile.role || '');
+  const [timezone, setTimezone] = useState(profile.timezone || TIMEZONES[1]);
   const [prefs, setPrefs] = useState(profile.notification_prefs || {});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(false);
 
   async function handleSave(e) {
-    e.preventDefault();
+    e?.preventDefault();
     setSaving(true);
     setError('');
     setSaved(false);
     const supabase = createClient();
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ display_name: displayName.trim(), role: role.trim(), notification_prefs: prefs })
+      .update({ display_name: displayName.trim(), role: role.trim(), timezone, notification_prefs: prefs })
       .eq('id', profile.id);
     setSaving(false);
     if (updateError) {
-      setError('Не удалось сохранить. Попробуйте ещё раз.');
+      setError(true);
       return;
     }
     setSaved(true);
@@ -42,29 +47,49 @@ export default function ProfileForm({ profile }) {
 
   return (
     <form onSubmit={handleSave}>
-      <div className="card" style={{ padding: 20, marginBottom: 16 }}>
-        <div className="micro-label" style={{ marginBottom: 14 }}>Личные данные</div>
-        <div className="field">
+      <div className="profile-hero">
+        <Avatar id={profile.id} name={displayName || profile.email} size={64} />
+        <div style={{ flex: 1 }}>
+          <div className="profile-hero-name">{displayName || profile.email}</div>
+          <div className="profile-hero-role">{role || 'Участник команды'} · ze.studio</div>
+          <div className="profile-hero-email">{profile.email}</div>
+        </div>
+        <button type="button" className="btn btn-secondary btn-sm" disabled title="Загрузка фото появится позже">
+          Изменить фото
+        </button>
+      </div>
+
+      <div className="micro-label" style={{ marginTop: 24, marginBottom: 14 }}>Данные аккаунта</div>
+      <div className="field-grid">
+        <div className="field-box">
           <label htmlFor="display-name">Имя</label>
-          <input id="display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={{ width: '100%' }} />
+          <input id="display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         </div>
-        <div className="field">
-          <label htmlFor="role">Роль в студии</label>
-          <input id="role" value={role} onChange={(e) => setRole(e.target.value)} style={{ width: '100%' }} />
+        <div className="field-box">
+          <label htmlFor="role">Роль</label>
+          <input id="role" value={role} onChange={(e) => setRole(e.target.value)} />
         </div>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label>Почта</label>
-          <div style={{ fontSize: 13.5, color: 'var(--gray-2)' }}>{profile.email}</div>
+        <div className="field-box">
+          <label>Email</label>
+          <div className="field-box-value">{profile.email}</div>
+        </div>
+        <div className="field-box">
+          <label htmlFor="timezone">Часовой пояс</label>
+          <select id="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+            {TIMEZONES.map((tz) => (
+              <option key={tz} value={tz}>{tz}</option>
+            ))}
+          </select>
         </div>
       </div>
 
-      <div className="card" style={{ padding: 20, marginBottom: 16 }}>
-        <div className="micro-label" style={{ marginBottom: 14 }}>Уведомления</div>
+      <div className="micro-label" style={{ marginTop: 24, marginBottom: 14 }}>Уведомления</div>
+      <div className="toggle-list">
         {TOGGLES.map((t) => (
-          <div key={t.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--divider)' }}>
-            <div style={{ marginRight: 16 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 500 }}>{t.label}</div>
-              <div style={{ fontSize: 12, color: 'var(--gray-2)', marginTop: 2 }}>{t.hint}</div>
+          <div key={t.key} className="toggle-row">
+            <div style={{ flex: 1 }}>
+              <div className="toggle-row-title">{t.label}</div>
+              <div className="toggle-row-hint">{t.hint}</div>
             </div>
             <button
               type="button"
@@ -79,12 +104,18 @@ export default function ProfileForm({ profile }) {
         ))}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {error && (
+        <div style={{ marginTop: 24 }}>
+          <ErrorCard onRetry={handleSave} retrying={saving} />
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 24 }}>
         <button type="submit" className="btn btn-primary" disabled={saving}>
           {saving ? 'Сохраняем…' : 'Сохранить изменения'}
         </button>
+        <SignOutButton className="signout-link">Выйти из аккаунта</SignOutButton>
         {saved && <span style={{ fontSize: 12, color: 'var(--ok-fg)' }}>Сохранено</span>}
-        {error && <span style={{ fontSize: 12, color: 'var(--err-fg)' }}>{error}</span>}
       </div>
     </form>
   );

@@ -1,49 +1,28 @@
 import Header from '../../components/Header';
-import EmptyState from '../../components/EmptyState';
-import { getCurrentProfile, listEvents } from '../../lib/data';
-import { EVENT_TYPE_DOT } from '../../lib/retro-constants';
-import { relativeTime } from '../../lib/format';
+import EventsBoard from '../../components/EventsBoard';
+import { getCurrentProfile, listEvents, listProjects } from '../../lib/data';
 
 export const dynamic = 'force-dynamic';
 
 export default async function EventsPage() {
-  const [profile, events] = await Promise.all([
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [profile, events, projects] = await Promise.all([
     getCurrentProfile(),
-    listEvents({ limit: 100 }),
+    listEvents({ since }),
+    listProjects(),
   ]);
 
   return (
     <div>
-      <Header profile={profile} breadcrumb={[{ label: 'Журнал', href: '/' }, { label: 'Лента' }]} />
+      <Header profile={profile} breadcrumb={[{ label: 'Журнал студии', href: '/' }, { label: 'Лента событий' }]} />
       <div className="shell">
         <div className="section">
-          <div className="micro-label" style={{ marginBottom: 10 }}>Лента</div>
-          <h1 className="h1" style={{ fontSize: 28, marginBottom: 24 }}>Все события</h1>
+          <div className="micro-label" style={{ marginBottom: 6 }}>Журнал студии</div>
+          <h1 className="page-heading">Лента<span style={{ color: 'var(--gold)' }}>.</span></h1>
+          <p className="page-sub">за последние 30 дней</p>
 
-          {events.length === 0 ? (
-            <EmptyState>Событий пока нет.</EmptyState>
-          ) : (
-            <div className="card">
-              {events.map((event) => (
-                <div key={event.id} className="list-row card-row">
-                  <span
-                    style={{
-                      width: 8, height: 8, borderRadius: '50%', marginTop: 5, flex: 'none',
-                      background: EVENT_TYPE_DOT[event.type] || 'var(--gray-1)',
-                    }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div className="row-title">{event.title}</div>
-                    <div className="row-sub">
-                      {event.projects?.name ? `${event.projects.name} · ` : ''}
-                      {event.subtitle || ''}
-                    </div>
-                  </div>
-                  <div className="row-time">{relativeTime(event.created_at)}</div>
-                </div>
-              ))}
-            </div>
-          )}
+          <EventsBoard events={events} projects={projects} />
         </div>
       </div>
     </div>

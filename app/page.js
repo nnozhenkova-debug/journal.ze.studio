@@ -1,32 +1,58 @@
 import Link from 'next/link';
 import Header from '../components/Header';
-import Pill from '../components/Pill';
+import TemplatePicker from '../components/TemplatePicker';
 import EmptyState from '../components/EmptyState';
 import {
   getCurrentProfile,
   listIssues,
   listEvents,
   listRetros,
+  listProjects,
 } from '../lib/data';
-import { RETRO_TEMPLATES, SEVERITY_LABEL, SEVERITY_PILL_CLASS, EVENT_TYPE_DOT } from '../lib/retro-constants';
-import { monthLabel, buildMonthGrid, isSameDay, toDateOnly, weekdayShort, relativeTime } from '../lib/format';
+import { RETRO_TEMPLATES, SEVERITY_LABEL, SEVERITY_PILL_CLASS, PROJECT_PALETTE } from '../lib/retro-constants';
+import { monthYearParts, monthPrepositional, buildMonthWeeks, isSameDay, daysAgoLabel } from '../lib/format';
 
 export const dynamic = 'force-dynamic';
+
+const WEEKDAYS = [
+  { label: 'Пн', weekend: false },
+  { label: 'Вт', weekend: false },
+  { label: 'Ср', weekend: false },
+  { label: 'Чт', weekend: false },
+  { label: 'Пт', weekend: false },
+  { label: 'Сб', weekend: true },
+  { label: 'Вс', weekend: true },
+];
+
+function eventTimeLabel(dateStr) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  if (isSameDay(d, now)) return `Сегодня, ${time}`;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (isSameDay(d, yesterday)) return `Вчера, ${time}`;
+  const weekday = d.toLocaleDateString('ru-RU', { weekday: 'short' });
+  return `${weekday}, ${time}`;
+}
 
 export default async function Page() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
-  const grid = buildMonthGrid(year, month);
+  const weeks = buildMonthWeeks(year, month);
   const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
   const lastDay = new Date(year, month + 1, 0).getDate();
   const to = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-  const [profile, issues, events, retros] = await Promise.all([
+  const { month: monthName, year: yearLabel } = monthYearParts(now);
+
+  const [profile, issues, events, retros, projects] = await Promise.all([
     getCurrentProfile(),
-    listIssues({ status: 'open', limit: 4 }),
+    listIssues({ status: 'open' }),
     listEvents({ limit: 5 }),
     listRetros({ from, to }),
+    listProjects(),
   ]);
 
   const retrosByDay = new Map();
@@ -40,130 +66,145 @@ export default async function Page() {
     <div>
       <Header profile={profile} />
       <div className="shell">
-        <div className="section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 24 }}>
+        <div className="section hero-section">
+          <div className="micro-label" style={{ marginBottom: 10 }}>Запланированные ретро</div>
+          <div className="hero-grid">
             <div>
-              <div className="micro-label" style={{ marginBottom: 10 }}>Журнал студии</div>
-              <h1 className="h1" style={{ whiteSpace: 'pre-line' }}>{monthLabel(now)}</h1>
-              <p className="h1-sub">Ретро, проекты и проблемы студии — в одном месте.</p>
-            </div>
+              <div className="hero-head">
+                <h1 className="h1">
+                  {monthName}
+                  <br />
+                  <span style={{ color: 'var(--gold)' }}>{yearLabel}</span>
+                </h1>
+                <div className="hero-legend">
+                  {projects.map((p) => {
+                    const pal = PROJECT_PALETTE[p.color_key] || PROJECT_PALETTE.slate;
+                    return (
+                      <span key={p.id} className="legend-item">
+                        <span className="legend-swatch" style={{ background: pal.bg, borderColor: pal.border }} />
+                        {p.name}
+                      </span>
+                    );
+                  })}
+                  <Link href="/projects" className="legend-link">Все проекты</Link>
+                </div>
+              </div>
 
-            <div className="card" style={{ padding: 20, minWidth: 320 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 8 }}>
-                {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((d) => (
-                  <div key={d} style={{ fontSize: 10, color: 'var(--gray-1)', textAlign: 'center', fontWeight: 600 }}>{d}</div>
+              <div className="retro-calendar">
+                <div className="retro-calendar-row">
+                  {WEEKDAYS.map((w) => (
+                    <div key={w.label} className={`retro-calendar-weekday${w.weekend ? ' is-weekend' : ''}`}>{w.label}</div>
+                  ))}
+                </div>
+                {weeks.map((week, wi) => (
+                  <div key={wi} className="retro-calendar-row">
+                    {week.map((d, di) => {
+                      const inMonth = d.getMonth() === month;
+                      const isToday = isSameDay(d, now);
+                      const isWeekend = di === 5 || di === 6;
+                      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                      const dayRetros = retrosByDay.get(key) || [];
+                      const classes = ['retro-day'];
+                      if (!inMonth) classes.push('is-out');
+                      if (isWeekend) classes.push('is-weekend');
+                      if (isToday) classes.push('is-today');
+                      return (
+                        <div key={di} className={classes.join(' ')}>
+                          {isToday ? (
+                            <span className="daynum-badge">{d.getDate()}</span>
+                          ) : (
+                            <span className="daynum">{d.getDate()}</span>
+                          )}
+                          {inMonth && dayRetros.map((r) => {
+                            const pal = PROJECT_PALETTE[r.projects?.color_key] || PROJECT_PALETTE.slate;
+                            const done = r.status === 'completed';
+                            return (
+                              <span
+                                key={r.id}
+                                className={`retro-badge${done ? ' is-done' : ''}`}
+                                style={{ background: pal.bg, borderColor: pal.border, color: pal.fg }}
+                              >
+                                {done ? '✓ ' : ''}{r.title.replace(/^Ретро:\s*/, '')}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
                 ))}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
-                {grid.map((d, i) => {
-                  const inMonth = d.getMonth() === month;
-                  const isToday = isSameDay(d, now);
-                  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                  const dayRetros = retrosByDay.get(key) || [];
-                  return (
-                    <div
-                      key={i}
-                      style={{
-                        aspectRatio: '1',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        color: inMonth ? 'var(--near)' : 'var(--gray-1)',
-                        background: isToday ? 'var(--gold-bg)' : 'transparent',
-                        border: isToday ? '1px solid var(--gold-border)' : '1px solid transparent',
-                        fontWeight: isToday ? 600 : 400,
-                        position: 'relative',
-                      }}
-                    >
-                      {d.getDate()}
-                      {dayRetros.length > 0 && (
-                        <span
-                          style={{
-                            position: 'absolute',
-                            bottom: 4,
-                            width: 4,
-                            height: 4,
-                            borderRadius: '50%',
-                            background: dayRetros.some((r) => r.status === 'completed') ? '#2ba647' : 'var(--gold)',
-                          }}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+
+              {retros.length === 0 && (
+                <div style={{ marginTop: 20, maxWidth: 330 }}>
+                  <EmptyState cta={{ label: 'Запланировать ретро →', href: '/retro/prepare' }}>
+                    В {monthPrepositional(now)} пока нет запланированных ретро
+                  </EmptyState>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="micro-label">Провести ретро</div>
+              <div className="template-heading">Выберите шаблон</div>
+              <p className="template-sub">Результаты сохраняются автоматически — команда видит итоги сразу.</p>
+              <TemplatePicker templates={RETRO_TEMPLATES} />
             </div>
           </div>
         </div>
 
-        <div className="section" style={{ paddingTop: 0 }}>
-          <div className="micro-label" style={{ marginBottom: 14 }}>Начать ретро</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 12 }}>
-            {RETRO_TEMPLATES.map((t) => (
-              <Link
-                key={t.id}
-                href={`/retro/prepare?template=${t.id}`}
-                className="card"
-                style={{ padding: 18, display: 'block' }}
-              >
-                <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>{t.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--gray-2)', lineHeight: 1.4 }}>{t.short}</div>
-                <div style={{ fontSize: 11, color: 'var(--gray-1)', marginTop: 10 }}>{t.duration}</div>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        <div className="section" style={{ paddingTop: 0, display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 24, alignItems: 'start' }}>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-              <div className="micro-label">Проблемы</div>
-              <Link href="/issues" style={{ fontSize: 12, color: 'var(--gray-2)' }}>Все проблемы →</Link>
+        <div className="section record-section">
+          <div className="record-section-header">
+            <div className="record-section-title">
+              <span className="micro-label">Открытые проблемы</span>
+              {issues.length > 0 && <span className="record-count">{issues.length}</span>}
             </div>
+            <Link href="/issues" className="record-see-all">Смотреть всё →</Link>
+          </div>
+          <div className="record-card">
             {issues.length === 0 ? (
               <EmptyState>Открытых проблем нет — можно выдохнуть.</EmptyState>
             ) : (
               <div className="card">
-                {issues.map((issue) => (
-                  <Link key={issue.id} href={`/issues#${issue.id}`} className="list-row card-row" style={{ justifyContent: 'space-between' }}>
-                    <div style={{ flex: 1 }}>
-                      <div className="row-title">{issue.title}</div>
-                      <div className="row-sub">{issue.projects?.name || '—'}</div>
-                    </div>
-                    <Pill variant={SEVERITY_PILL_CLASS[issue.severity]?.replace('pill-', '') || 'neutral'}>
+                {issues.slice(0, 3).map((issue) => (
+                  <Link key={issue.id} href="/issues" className="table-row card-row">
+                    <span className={`pill ${SEVERITY_PILL_CLASS[issue.severity] || 'pill-neutral'}`}>
                       {SEVERITY_LABEL[issue.severity]}
-                    </Pill>
+                    </span>
+                    <div>
+                      <div className="row-title">{issue.title}</div>
+                      <div className="row-sub">
+                        {issue.projects?.name ? <span className="row-project">{issue.projects.name}</span> : 'Без проекта'}
+                        {' · Ответственный: '}
+                        {issue.responsible_id ? 'Назначен' : 'Не назначен'}
+                      </div>
+                    </div>
+                    <span className="row-meta">{daysAgoLabel(issue.created_at)} →</span>
                   </Link>
                 ))}
               </div>
             )}
           </div>
+        </div>
 
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-              <div className="micro-label">Лента</div>
-              <Link href="/events" style={{ fontSize: 12, color: 'var(--gray-2)' }}>Вся лента →</Link>
-            </div>
+        <div className="section record-section" style={{ paddingTop: 0 }}>
+          <div className="record-section-header">
+            <span className="micro-label">Лента событий</span>
+            <Link href="/events" className="record-see-all">Смотреть всё →</Link>
+          </div>
+          <div className="record-card">
             {events.length === 0 ? (
-              <EmptyState>Событий пока нет.</EmptyState>
+              <EmptyState>Пока нет событий — они появятся здесь после первого ретро</EmptyState>
             ) : (
               <div className="card">
                 {events.map((event) => (
-                  <div key={event.id} className="list-row card-row">
-                    <span
-                      style={{
-                        width: 8, height: 8, borderRadius: '50%', marginTop: 5, flex: 'none',
-                        background: EVENT_TYPE_DOT[event.type] || 'var(--gray-1)',
-                      }}
-                    />
-                    <div style={{ flex: 1 }}>
+                  <div key={event.id} className="table-row card-row">
+                    <span className="event-dot" style={{ background: event.type === 'issue_created' ? '#c0351a' : event.type.includes('completed') || event.type.includes('resolved') ? '#22a547' : '#aaa' }} />
+                    <div>
                       <div className="row-title">{event.title}</div>
                       {event.subtitle && <div className="row-sub">{event.subtitle}</div>}
                     </div>
-                    <div className="row-time">{relativeTime(event.created_at)}</div>
+                    <span className="row-meta">{eventTimeLabel(event.created_at)}</span>
                   </div>
                 ))}
               </div>
