@@ -17,8 +17,8 @@ export default function TeamBoard({ team, isAdmin }) {
     setInviteError('');
     setInviteSent('');
     const email = inviteEmail.trim().toLowerCase();
-    if (!email.endsWith('@ze.studio')) {
-      setInviteError('Почта должна быть в домене @ze.studio.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setInviteError('Введите корректный email.');
       return;
     }
     setInviting(true);
@@ -79,7 +79,7 @@ export default function TeamBoard({ team, isAdmin }) {
           <input
             type="email"
             required
-            placeholder="имя@ze.studio"
+            placeholder="email@example.com"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
             style={{ flex: '1 1 240px' }}

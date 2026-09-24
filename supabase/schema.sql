@@ -46,23 +46,14 @@ create policy "profiles updatable by owner or admin"
   with check (auth.uid() = id or public.is_admin());
 
 -- =====================================================================
--- 2. Ограничение регистрации доменом студии.
--- Поменяйте 'ze.studio' здесь, если домен почты команды другой.
+-- 2. Ограничение регистрации доменом студии — отключено по просьбе:
+-- теперь можно приглашать участников с любой почтой, не только @ze.studio.
+-- Эти строки только снимают ограничение (для тех, у кого схема уже была
+-- накатана раньше); саму функцию/триггер не пересоздаём. Если понадобится
+-- вернуть домен-гейт обратно — просто восстановите старый триггер.
 -- =====================================================================
-create or replace function public.enforce_org_domain()
-returns trigger as $$
-begin
-  if new.email is null or right(lower(new.email), length('@ze.studio')) <> '@ze.studio' then
-    raise exception 'Вход доступен только с адресов @ze.studio';
-  end if;
-  return new;
-end;
-$$ language plpgsql security definer;
-
 drop trigger if exists enforce_org_domain_trigger on auth.users;
-create trigger enforce_org_domain_trigger
-  before insert on auth.users
-  for each row execute function public.enforce_org_domain();
+drop function if exists public.enforce_org_domain();
 
 create or replace function public.handle_new_user()
 returns trigger as $$

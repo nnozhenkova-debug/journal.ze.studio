@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '../../../lib/supabase/server';
 import { createAdminClient } from '../../../lib/supabase/admin';
 
-const ORG_DOMAIN = '@ze.studio';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request) {
   const supabase = createClient();
@@ -32,8 +32,8 @@ export async function POST(request) {
   }
 
   const email = (body?.email || '').trim().toLowerCase();
-  if (!email || !email.endsWith(ORG_DOMAIN)) {
-    return NextResponse.json({ error: `Почта должна быть в домене ${ORG_DOMAIN}.` }, { status: 400 });
+  if (!email || !EMAIL_RE.test(email)) {
+    return NextResponse.json({ error: 'Введите корректный email.' }, { status: 400 });
   }
 
   const adminClient = createAdminClient();

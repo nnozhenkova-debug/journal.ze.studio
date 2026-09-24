@@ -45,7 +45,7 @@ export default function LoginPage() {
               id="login-email"
               type="email"
               required
-              placeholder="имя@ze.studio"
+              placeholder="email@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={{ width: '100%' }}
