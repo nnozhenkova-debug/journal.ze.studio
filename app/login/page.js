@@ -33,13 +33,13 @@ export default function LoginPage() {
   return (
     <div className="login-shell">
       <div className="login-card">
-        <div className="eyebrow">ze.studio</div>
+        <div className="micro-label" style={{ marginBottom: 10 }}>ze.studio</div>
         <h1>Журнал студии</h1>
-        <p>Вход по email и паролю, которые вам выдали.</p>
+        <p className="sub">Вход по email и паролю, которые вам выдали.</p>
 
         <form onSubmit={handleSubmit}>
           {error && <div className="err">{error}</div>}
-          <div style={{ marginBottom: 14 }}>
+          <div className="field">
             <label htmlFor="login-email">Рабочая почта</label>
             <input
               id="login-email"
@@ -51,7 +51,7 @@ export default function LoginPage() {
               style={{ width: '100%' }}
             />
           </div>
-          <div style={{ marginBottom: 14 }}>
+          <div className="field">
             <label htmlFor="login-password">Пароль</label>
             <input
               id="login-password"
@@ -63,7 +63,7 @@ export default function LoginPage() {
               style={{ width: '100%' }}
             />
           </div>
-          <button type="submit" className="btn" disabled={loading} style={{ width: '100%' }}>
+          <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>
             {loading ? 'Входим…' : 'Войти'}
           </button>
         </form>

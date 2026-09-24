@@ -1,15 +1,24 @@
 -- Журнал студии — схема базы данных Supabase.
 -- Выполните этот файл целиком в Supabase Dashboard -> SQL Editor -> New query -> Run.
--- Безопасно запускать один раз на чистом проекте.
+-- Безопасно выполнять повторно на уже существующем проекте (использует
+-- if not exists / on conflict do nothing везде, где это возможно).
 
--- 1. Профили: публичное имя для каждого аккаунта (auth.users недоступна другим пользователям напрямую)
+-- =====================================================================
+-- 1. Профили
+-- =====================================================================
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   display_name text,
+  role text default 'Участник команды',
+  status text not null default 'active' check (status in ('active', 'invited')),
   created_at timestamptz not null default now()
 );
 alter table public.profiles enable row level security;
+
+alter table public.profiles add column if not exists role text default 'Участник команды';
+alter table public.profiles add column if not exists status text not null default 'active';
+alter table public.profiles add column if not exists notification_prefs jsonb not null default '{"retro_reminders": true, "issue_updates": true, "weekly_digest": false}'::jsonb;
 
 drop policy if exists "profiles readable by authenticated" on public.profiles;
 create policy "profiles readable by authenticated"
@@ -21,8 +30,10 @@ create policy "profiles updatable by owner"
   on public.profiles for update
   using (auth.uid() = id);
 
+-- =====================================================================
 -- 2. Ограничение регистрации доменом студии.
 -- Поменяйте 'ze.studio' здесь, если домен почты команды другой.
+-- =====================================================================
 create or replace function public.enforce_org_domain()
 returns trigger as $$
 begin
@@ -38,7 +49,6 @@ create trigger enforce_org_domain_trigger
   before insert on auth.users
   for each row execute function public.enforce_org_domain();
 
--- 3. Автоматически создаём профиль при первом входе нового пользователя.
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
@@ -54,80 +64,221 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- 4. Записи журнала: встречи, заметки, ретро-проблемы/практики и т.д.
-create table if not exists public.entries (
-  id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('meeting','note','risk','agreement','decision','client_mood','retro_problem','retro_practice')),
-  project text not null,
-  date date not null,
-  author_id uuid references auth.users(id) on delete set null,
-  text text not null,
-  attendees text,
-  category text,
-  solution text,
-  owner text,
-  status text check (status in ('new','proposed','in_progress','resolved','recurred')),
-  stage text not null default 'formalized' check (stage in ('draft','formalized')),
-  history jsonb not null default '[]'::jsonb,
-  is_example boolean not null default false,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+-- =====================================================================
+-- 3. Проекты
+-- =====================================================================
+create table if not exists public.projects (
+  id text primary key,
+  name text not null,
+  shortcode text,
+  client text,
+  color_key text not null default 'slate' check (color_key in ('amber', 'violet', 'slate', 'teal', 'rose')),
+  status text not null default 'active' check (status in ('active', 'archived')),
+  created_at timestamptz not null default now()
 );
-alter table public.entries enable row level security;
+alter table public.projects enable row level security;
 
-drop policy if exists "entries readable by authenticated" on public.entries;
-create policy "entries readable by authenticated"
-  on public.entries for select
-  using (auth.role() = 'authenticated');
+drop policy if exists "projects readable by authenticated" on public.projects;
+create policy "projects readable by authenticated"
+  on public.projects for select using (auth.role() = 'authenticated');
+drop policy if exists "projects writable by authenticated" on public.projects;
+create policy "projects writable by authenticated"
+  on public.projects for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
-drop policy if exists "entries insertable by authenticated" on public.entries;
-create policy "entries insertable by authenticated"
-  on public.entries for insert
-  with check (auth.role() = 'authenticated');
+-- =====================================================================
+-- 4. Этапы проекта
+-- =====================================================================
+create table if not exists public.project_stages (
+  id uuid primary key default gen_random_uuid(),
+  project_id text not null references public.projects(id) on delete cascade,
+  name text not null,
+  start_date date,
+  end_date date,
+  state text not null default 'upcoming' check (state in ('past', 'current', 'upcoming')),
+  planned_minutes integer not null default 0,
+  actual_minutes integer not null default 0,
+  sort_order integer not null default 0
+);
+alter table public.project_stages enable row level security;
 
-drop policy if exists "entries updatable by authenticated" on public.entries;
-create policy "entries updatable by authenticated"
-  on public.entries for update
-  using (auth.role() = 'authenticated');
+drop policy if exists "stages readable by authenticated" on public.project_stages;
+create policy "stages readable by authenticated"
+  on public.project_stages for select using (auth.role() = 'authenticated');
+drop policy if exists "stages writable by authenticated" on public.project_stages;
+create policy "stages writable by authenticated"
+  on public.project_stages for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
-drop policy if exists "entries deletable by authenticated" on public.entries;
-create policy "entries deletable by authenticated"
-  on public.entries for delete
-  using (auth.role() = 'authenticated');
+create index if not exists project_stages_project_idx on public.project_stages (project_id);
 
-create index if not exists entries_project_idx on public.entries (project);
-create index if not exists entries_type_idx on public.entries (type);
-create index if not exists entries_date_idx on public.entries (date desc);
+-- =====================================================================
+-- 5. Ретро
+-- =====================================================================
+create table if not exists public.retros (
+  id uuid primary key default gen_random_uuid(),
+  project_id text not null references public.projects(id) on delete cascade,
+  stage_id uuid references public.project_stages(id) on delete set null,
+  template text not null check (template in (
+    'start_stop_continue', '4l', 'mad_sad_glad', 'sailboat', 'daki', 'team_energy'
+  )),
+  title text not null,
+  scheduled_date date not null,
+  status text not null default 'scheduled' check (status in ('scheduled', 'in_progress', 'completed')),
+  started_at timestamptz,
+  completed_at timestamptz,
+  duration_seconds integer,
+  stage_context jsonb not null default '{}'::jsonb,
+  published boolean not null default false,
+  published_at timestamptz,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table public.retros enable row level security;
 
--- 5. Включаем realtime — чтобы изменения одного человека сразу видели остальные.
-alter publication supabase_realtime add table public.entries;
+alter table public.retros add column if not exists published boolean not null default false;
+alter table public.retros add column if not exists published_at timestamptz;
 
--- 6. Несколько примеров, чтобы доска не была пустой при первом входе.
--- Можно удалить прямо из интерфейса после того, как появятся реальные записи.
-insert into public.entries (type, project, date, text, attendees, category, solution, owner, status, stage, history, is_example)
+drop policy if exists "retros readable by authenticated" on public.retros;
+create policy "retros readable by authenticated"
+  on public.retros for select using (auth.role() = 'authenticated');
+drop policy if exists "retros writable by authenticated" on public.retros;
+create policy "retros writable by authenticated"
+  on public.retros for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create index if not exists retros_project_idx on public.retros (project_id);
+create index if not exists retros_date_idx on public.retros (scheduled_date);
+
+create table if not exists public.retro_participants (
+  retro_id uuid not null references public.retros(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (retro_id, user_id)
+);
+alter table public.retro_participants enable row level security;
+drop policy if exists "retro_participants readable by authenticated" on public.retro_participants;
+create policy "retro_participants readable by authenticated"
+  on public.retro_participants for select using (auth.role() = 'authenticated');
+drop policy if exists "retro_participants writable by authenticated" on public.retro_participants;
+create policy "retro_participants writable by authenticated"
+  on public.retro_participants for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create table if not exists public.retro_notes (
+  id uuid primary key default gen_random_uuid(),
+  retro_id uuid not null references public.retros(id) on delete cascade,
+  column_key text not null,
+  text text not null,
+  author_id uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table public.retro_notes enable row level security;
+drop policy if exists "retro_notes readable by authenticated" on public.retro_notes;
+create policy "retro_notes readable by authenticated"
+  on public.retro_notes for select using (auth.role() = 'authenticated');
+drop policy if exists "retro_notes writable by authenticated" on public.retro_notes;
+create policy "retro_notes writable by authenticated"
+  on public.retro_notes for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create index if not exists retro_notes_retro_idx on public.retro_notes (retro_id);
+
+-- =====================================================================
+-- 6. Проблемы
+-- =====================================================================
+create table if not exists public.issues (
+  id uuid primary key default gen_random_uuid(),
+  project_id text not null references public.projects(id) on delete cascade,
+  title text not null,
+  description text,
+  severity text not null default 'important' check (severity in ('critical', 'important', 'watch')),
+  responsible_id uuid references auth.users(id) on delete set null,
+  status text not null default 'open' check (status in ('open', 'resolved')),
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz
+);
+alter table public.issues enable row level security;
+
+drop policy if exists "issues readable by authenticated" on public.issues;
+create policy "issues readable by authenticated"
+  on public.issues for select using (auth.role() = 'authenticated');
+drop policy if exists "issues writable by authenticated" on public.issues;
+create policy "issues writable by authenticated"
+  on public.issues for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create index if not exists issues_project_idx on public.issues (project_id);
+create index if not exists issues_status_idx on public.issues (status);
+
+-- =====================================================================
+-- 7. Лента событий
+-- =====================================================================
+create table if not exists public.events (
+  id uuid primary key default gen_random_uuid(),
+  project_id text references public.projects(id) on delete set null,
+  type text not null check (type in ('retro_completed', 'issue_resolved', 'issue_created', 'note')),
+  title text not null,
+  subtitle text,
+  actor_id uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table public.events enable row level security;
+
+drop policy if exists "events readable by authenticated" on public.events;
+create policy "events readable by authenticated"
+  on public.events for select using (auth.role() = 'authenticated');
+drop policy if exists "events writable by authenticated" on public.events;
+create policy "events writable by authenticated"
+  on public.events for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create index if not exists events_created_idx on public.events (created_at desc);
+
+-- Realtime — чтобы изменения одного человека сразу видели остальные
+-- (важно для живой ретро-сессии).
+do $$
+begin
+  alter publication supabase_realtime add table public.retros;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.retro_notes;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.issues;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.events;
+exception when duplicate_object then null;
+end $$;
+
+-- =====================================================================
+-- 8. Затравочные данные — можно удалить из интерфейса после того,
+--    как появятся настоящие проекты.
+-- =====================================================================
+insert into public.projects (id, name, shortcode, client, color_key)
 values
-  ('meeting', 'Сайт «Аврора»', '2026-06-02',
-   'Ретро по итогам проекта. Обсудили коммуникацию с клиентом и качество ревью перед сдачей. Договорились о двух конкретных изменениях в процессе.',
-   'Игорь, Света, Арт-директор', null, null, null, null, 'formalized', '[]'::jsonb, true),
-  ('retro_problem', 'Сайт «Аврора»', '2026-05-14',
-   'Клиент менял приоритеты по ходу проекта в личных сообщениях менеджеру, минуя ПМа — решения терялись.',
-   null, 'comm', 'Все решения клиента фиксируются в одном канале с ПМом в копии.', 'Игорь', 'resolved', 'formalized',
-   '[{"status":"new","date":"2026-05-14","note":"Зафиксировано на ретро"},{"status":"proposed","date":"2026-05-16","note":"Предложено единое правило"},{"status":"resolved","date":"2026-06-02","note":"Внедрено и проверено"}]'::jsonb,
-   true),
-  ('retro_problem', 'Бренд «Полюс»', '2026-07-20',
-   'Клиент согласовывал правки устно на созвоне, потом отрицал часть договорённостей.',
-   null, 'comm', 'После каждого созвона — короткое письменное резюме.', 'Марина', 'in_progress', 'formalized',
-   '[{"status":"new","date":"2026-07-20","note":"Зафиксировано на ретро"},{"status":"proposed","date":"2026-07-22","note":"Предложено резюме после созвонов"},{"status":"in_progress","date":"2026-08-01","note":"Внедряется на текущих проектах"}]'::jsonb,
-   true),
-  ('retro_problem', 'Каталог «Нео»', '2026-09-18',
-   'Та же история: устные договорённости с клиентом разошлись через неделю.',
-   null, 'comm', 'Проверить, применялось ли правило из проекта «Полюс».', 'Дана', 'recurred', 'formalized',
-   '[{"status":"new","date":"2026-09-18","note":"Похоже на повтор темы из «Полюса»"}]'::jsonb,
-   true),
-  ('retro_practice', 'Сайт «Аврора»', '2026-06-02',
-   'Двухуровневое ревью перед сдачей — ни одного дефекта после сдачи.',
-   null, 'quality', null, null, null, 'formalized', '[]'::jsonb, true),
-  ('decision', 'Лендинг «Орбита»', '2026-04-25',
-   'Решили закладывать 15% буфер на правки в оценку для всех проектов с фикс-ценой.',
-   null, null, null, null, null, 'formalized', '[]'::jsonb, true)
+  ('avrora', 'Аврора', 'АВР', 'Внешний клиент', 'amber'),
+  ('nova', 'Нова', 'НОВ', 'Внешний клиент', 'violet'),
+  ('ze-studio', 'ze.studio', 'ZE', null, 'slate')
+on conflict (id) do nothing;
+
+insert into public.project_stages (project_id, name, start_date, end_date, state, planned_minutes, actual_minutes, sort_order)
+values
+  ('avrora', 'Концепт (исследование + UI-концепция)', '2026-09-01', '2026-09-20', 'past', 2400, 2340, 1),
+  ('avrora', 'Проработка логики (UI)', '2026-09-21', '2026-10-10', 'current', 2400, 2040, 2),
+  ('avrora', 'UI-kit', '2026-10-11', '2026-10-24', 'upcoming', 1440, 0, 3)
+on conflict do nothing;
+
+insert into public.issues (project_id, title, description, severity, status, created_at)
+values
+  ('avrora', 'Просрочены правки по проекту «Аврора»', 'Клиент не прислал комментарии по макетам уже 2 дня.', 'critical', 'open', now() - interval '2 days'),
+  ('nova', 'Не назначен ответственный за бриф «Нова»', null, 'important', 'open', now() - interval '1 day'),
+  ('ze-studio', 'Клиент не согласовал смету — 5 дней без ответа', null, 'important', 'open', now() - interval '5 days')
+on conflict do nothing;
+
+insert into public.events (project_id, type, title, subtitle, created_at)
+values
+  ('avrora', 'retro_completed', 'Завершено ретро «Спринт 14»', 'Участники: Аня К., Максим Р., Лена Б.', now() - interval '3 hours'),
+  ('avrora', 'issue_resolved', 'Проблема «Просрочены правки» помечена решённой', 'Изменил: Максим Р.', now() - interval '1 day'),
+  ('nova', 'retro_completed', 'Завершено ретро «Онбординг клиента»', 'Участники: Аня К., Лена Б.', now() - interval '4 days')
 on conflict do nothing;
