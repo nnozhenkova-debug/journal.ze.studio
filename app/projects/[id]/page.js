@@ -191,7 +191,7 @@ export default async function ProjectPage({ params }) {
                 ) : (
                   members.map((m) => (
                     <div key={m.id} className="member-row">
-                      <Avatar id={m.id} name={m.display_name} size={36} />
+                      <Avatar id={m.id} name={m.display_name} url={m.avatar_url} size={36} />
                       <div>
                         <div className="member-name">{m.display_name}</div>
                         {m.role && <div className="member-role">{m.role}</div>}

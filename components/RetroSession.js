@@ -58,7 +58,7 @@ function NoteColumnBody({ col, notes, drafts, setDrafts, busyColumn, errorColumn
         <div key={n.id} className="retro-note-card">
           <div className="retro-note-text">{n.text}</div>
           <div className="retro-note-meta">
-            <Avatar id={n.author_id} name={n.profiles?.display_name} size={20} style={{ fontSize: 8 }} />
+            <Avatar id={n.author_id} name={n.profiles?.display_name} url={n.profiles?.avatar_url} size={20} style={{ fontSize: 8 }} />
             <span className="retro-note-author">{shortName(n.profiles?.display_name) || 'Участник'}</span>
           </div>
         </div>
@@ -159,7 +159,7 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
     const { data, error } = await supabase
       .from('retro_notes')
       .insert({ retro_id: retro.id, column_key: columnKey, text, author_id: profile.id })
-      .select('*, profiles(id,display_name)')
+      .select('*, profiles(id,display_name,avatar_url)')
       .single();
     if (!error && data) {
       setNotes((prev) => (prev.some((n) => n.id === data.id) ? prev : [...prev, data]));
@@ -197,7 +197,7 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
         due_date: stepDue || null,
         sort_order: actionItems.length,
       })
-      .select('*, profiles(id,display_name)')
+      .select('*, profiles(id,display_name,avatar_url)')
       .single();
     setAddingStep(false);
     if (!error && data) {
@@ -315,7 +315,7 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
             <div className="micro-label">Участники</div>
             <div className="retro-participants">
               {participants.map((p, i) => (
-                <Avatar key={p.user_id} id={p.user_id} name={p.profiles?.display_name} size={32} style={{ marginLeft: i === 0 ? 0 : -10, border: '2px solid var(--bg)' }} />
+                <Avatar key={p.user_id} id={p.user_id} name={p.profiles?.display_name} url={p.profiles?.avatar_url} size={32} style={{ marginLeft: i === 0 ? 0 : -10, border: '2px solid var(--bg)' }} />
               ))}
               <button
                 type="button"
@@ -382,7 +382,7 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
                 <div className="energy-participants">
                   {participants.map((p) => (
                     <div key={p.user_id} className="energy-participant">
-                      <Avatar id={p.user_id} name={p.profiles?.display_name} size={40} style={{ fontSize: 12 }} />
+                      <Avatar id={p.user_id} name={p.profiles?.display_name} url={p.profiles?.avatar_url} size={40} style={{ fontSize: 12 }} />
                       <span className="energy-participant-name">{(p.profiles?.display_name || '').split(' ')[0]}</span>
                       <div className="energy-levels">
                         {ENERGY_LEVELS.map((lvl) => (
@@ -496,7 +496,7 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
                         <div key={n.id} className="retro-summary-note-row">
                           <span className="retro-note-text">{n.text}</span>
                           <span className="retro-note-meta">
-                            <Avatar id={n.author_id} name={n.profiles?.display_name} size={22} style={{ fontSize: 8 }} />
+                            <Avatar id={n.author_id} name={n.profiles?.display_name} url={n.profiles?.avatar_url} size={22} style={{ fontSize: 8 }} />
                             <span className="retro-note-author">{shortName(n.profiles?.display_name) || 'Участник'}</span>
                           </span>
                         </div>
@@ -567,7 +567,7 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
                 <div style={{ padding: '14px 18px' }}>
                   {participants.map((p) => (
                     <div key={p.user_id} className="participant-row">
-                      <Avatar id={p.user_id} name={p.profiles?.display_name} size={26} style={{ fontSize: 9 }} />
+                      <Avatar id={p.user_id} name={p.profiles?.display_name} url={p.profiles?.avatar_url} size={26} style={{ fontSize: 9 }} />
                       <span className="participant-row-name">{p.profiles?.display_name}</span>
                     </div>
                   ))}

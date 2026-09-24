@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createClient } from '../lib/supabase/client';
 import Avatar from './Avatar';
 import SignOutButton from './SignOutButton';
 import ErrorCard from './ErrorCard';
 import { TIMEZONES } from '../lib/retro-constants';
+
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 
 const TOGGLES = [
   { key: 'retro_reminders', label: 'Уведомления о ретро', hint: 'Напоминание за час до начала' },
@@ -21,6 +24,10 @@ export default function ProfileForm({ profile }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url || '');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
+  const fileInputRef = useRef(null);
 
   async function handleSave(e) {
     e?.preventDefault();
@@ -45,19 +52,78 @@ export default function ProfileForm({ profile }) {
     setPrefs((p) => ({ ...p, [key]: !p[key] }));
   }
 
+  async function handleAvatarChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      setAvatarError('Нужен файл PNG, JPEG, WebP или GIF.');
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError('Файл больше 5 МБ — выберите фото поменьше.');
+      return;
+    }
+
+    setAvatarError('');
+    setUploadingAvatar(true);
+    const supabase = createClient();
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `${profile.id}/avatar.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, cacheControl: '3600' });
+
+    if (uploadError) {
+      setUploadingAvatar(false);
+      setAvatarError('Не удалось загрузить фото. Попробуйте ещё раз.');
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(path);
+    const freshUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ avatar_url: freshUrl })
+      .eq('id', profile.id);
+
+    setUploadingAvatar(false);
+    if (updateError) {
+      setAvatarError('Фото загрузилось, но не сохранилось в профиле. Попробуйте ещё раз.');
+      return;
+    }
+    setAvatarUrl(freshUrl);
+  }
+
   return (
     <form onSubmit={handleSave}>
       <div className="profile-hero">
-        <Avatar id={profile.id} name={displayName || profile.email} size={64} />
+        <Avatar id={profile.id} name={displayName || profile.email} url={avatarUrl} size={64} />
         <div style={{ flex: 1 }}>
           <div className="profile-hero-name">{displayName || profile.email}</div>
           <div className="profile-hero-role">{role || 'Участник команды'} · ze.studio</div>
           <div className="profile-hero-email">{profile.email}</div>
         </div>
-        <button type="button" className="btn btn-secondary btn-sm" disabled title="Загрузка фото появится позже">
-          Изменить фото
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          onChange={handleAvatarChange}
+          style={{ display: 'none' }}
+        />
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploadingAvatar}
+        >
+          {uploadingAvatar ? 'Загружаем…' : 'Изменить фото'}
         </button>
       </div>
+      {avatarError && <div className="err" style={{ marginTop: 8 }}>{avatarError}</div>}
 
       <div className="micro-label" style={{ marginTop: 24, marginBottom: 14 }}>Данные аккаунта</div>
       <div className="field-grid">

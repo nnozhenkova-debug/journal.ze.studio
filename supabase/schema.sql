@@ -67,8 +67,16 @@ create trigger enforce_org_domain_trigger
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, email, display_name)
-  values (new.id, new.email, split_part(new.email, '@', 1))
+  -- Приглашённые через Admin API (inviteUserByEmail) пользователи заводятся
+  -- Supabase'ом с заполненным invited_at ещё до того, как человек установил
+  -- пароль — таким профилям сразу ставим статус «invited», а не «active».
+  insert into public.profiles (id, email, display_name, status)
+  values (
+    new.id,
+    new.email,
+    split_part(new.email, '@', 1),
+    case when new.invited_at is not null then 'invited' else 'active' end
+  )
   on conflict (id) do nothing;
   return new;
 end;
@@ -435,3 +443,37 @@ on conflict do nothing;
 -- или выдайте флаг is_admin ещё кому-то прямо в Table Editor → profiles.
 -- =====================================================================
 update public.profiles set is_admin = true where email = 'n.nozhenkova@ze.studio';
+
+-- =====================================================================
+-- 10. Аватарки — файл кладём в Supabase Storage, ссылку храним в profiles.
+-- =====================================================================
+alter table public.profiles add column if not exists avatar_url text;
+
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
+-- Файл каждого человека лежит по пути "<его user id>/avatar.<расширение>" —
+-- политики ниже используют первую часть пути, чтобы разрешить менять только
+-- свой файл. Бакет публичный, поэтому читать аватарки может кто угодно
+-- по прямой ссылке (это ожидаемо: это просто фото профиля).
+drop policy if exists "avatars readable by anyone" on storage.objects;
+create policy "avatars readable by anyone"
+  on storage.objects for select
+  using (bucket_id = 'avatars');
+
+drop policy if exists "avatars writable by owner" on storage.objects;
+create policy "avatars writable by owner"
+  on storage.objects for insert
+  with check (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
+
+drop policy if exists "avatars updatable by owner" on storage.objects;
+create policy "avatars updatable by owner"
+  on storage.objects for update
+  using (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1])
+  with check (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
+
+drop policy if exists "avatars deletable by owner" on storage.objects;
+create policy "avatars deletable by owner"
+  on storage.objects for delete
+  using (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);

@@ -15,7 +15,7 @@ export default function Header({ profile, breadcrumb }) {
             <>
               <span className="user-name">{profile.display_name || profile.email}</span>
               <Link href="/profile">
-                <Avatar id={profile.id} name={profile.display_name || profile.email} size={30} />
+                <Avatar id={profile.id} name={profile.display_name || profile.email} url={profile.avatar_url} size={30} />
               </Link>
             </>
           )}
@@ -28,8 +28,8 @@ export default function Header({ profile, breadcrumb }) {
       {breadcrumb && breadcrumb.length > 0 && (
         <div className="breadcrumb">
           {breadcrumb.map((item, i) => (
-            <span key={i}>
-              {i > 0 && ' / '}
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {i > 0 && <span className="crumb-sep">→</span>}
               {item.href ? <Link href={item.href}>{item.label}</Link> : item.label}
             </span>
           ))}

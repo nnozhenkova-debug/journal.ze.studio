@@ -4,8 +4,43 @@ import { useMemo, useState } from 'react';
 import Avatar from './Avatar';
 import EmptyState from './EmptyState';
 
-export default function TeamBoard({ team }) {
+export default function TeamBoard({ team, isAdmin }) {
   const [query, setQuery] = useState('');
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [inviteSent, setInviteSent] = useState('');
+
+  async function sendInvite(e) {
+    e.preventDefault();
+    setInviteError('');
+    setInviteSent('');
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email.endsWith('@ze.studio')) {
+      setInviteError('Почта должна быть в домене @ze.studio.');
+      return;
+    }
+    setInviting(true);
+    try {
+      const res = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setInviteError(body.error || 'Не удалось отправить приглашение.');
+        return;
+      }
+      setInviteSent(email);
+      setInviteEmail('');
+    } catch {
+      setInviteError('Не удалось отправить приглашение. Проверьте соединение.');
+    } finally {
+      setInviting(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -27,11 +62,39 @@ export default function TeamBoard({ team }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button type="button" className="btn btn-primary btn-sm" disabled title="Приглашения появятся позже — пока доступ выдаётся вручную">
-            + Пригласить
-          </button>
+          {isAdmin ? (
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setInviteOpen((v) => !v)}>
+              + Пригласить
+            </button>
+          ) : (
+            <button type="button" className="btn btn-primary btn-sm" disabled title="Приглашать может только админ студии">
+              + Пригласить
+            </button>
+          )}
         </div>
       </div>
+
+      {isAdmin && inviteOpen && (
+        <form onSubmit={sendInvite} className="card" style={{ marginTop: 16, padding: 16, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="email"
+            required
+            placeholder="имя@ze.studio"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            style={{ flex: '1 1 240px' }}
+          />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={inviting}>
+            {inviting ? 'Отправляем…' : 'Отправить приглашение'}
+          </button>
+          {inviteError && <span className="err" style={{ flexBasis: '100%' }}>{inviteError}</span>}
+          {inviteSent && (
+            <span style={{ flexBasis: '100%', fontSize: 12, color: 'var(--ok-fg)' }}>
+              Приглашение отправлено на {inviteSent}.
+            </span>
+          )}
+        </form>
+      )}
 
       <div className="card" style={{ marginTop: 24 }}>
         {filtered.length === 0 ? (
@@ -41,7 +104,7 @@ export default function TeamBoard({ team }) {
         ) : (
           filtered.map((m) => (
             <div key={m.id} className="team-row">
-              <Avatar id={m.id} name={m.display_name || m.email} size={36} />
+              <Avatar id={m.id} name={m.display_name || m.email} url={m.avatar_url} size={36} />
               <div style={{ flex: 1 }}>
                 <div className="row-title">{m.display_name || m.email}</div>
                 <div className="row-sub">

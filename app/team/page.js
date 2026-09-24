@@ -12,7 +12,7 @@ export default async function TeamPage() {
       <Header profile={profile} breadcrumb={[{ label: 'Журнал студии', href: '/' }, { label: 'Команда' }]} />
       <div className="shell">
         <div className="section">
-          <TeamBoard team={team} />
+          <TeamBoard team={team} isAdmin={!!profile?.is_admin} />
         </div>
       </div>
     </div>
