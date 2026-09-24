@@ -1,36 +1,33 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '../../lib/supabase/client';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    if (!email.trim()) return;
+    if (!email.trim() || !password) return;
     setLoading(true);
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithOtp({
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      password,
     });
     setLoading(false);
     if (signInError) {
-      setError(
-        signInError.message.includes('ze.studio')
-          ? signInError.message
-          : 'Не получилось отправить ссылку. Проверьте адрес и попробуйте ещё раз.'
-      );
+      setError('Неверная почта или пароль. Уточните данные у того, кто выдал доступ.');
       return;
     }
-    setSent(true);
+    router.push('/');
+    router.refresh();
   }
 
   return (
@@ -38,33 +35,38 @@ export default function LoginPage() {
       <div className="login-card">
         <div className="eyebrow">ze.studio</div>
         <h1>Журнал студии</h1>
-        <p>Вход по ссылке на почту — без пароля. Доступ только с адресов @ze.studio.</p>
+        <p>Вход по email и паролю, которые вам выдали.</p>
 
-        {sent ? (
-          <div className="ok">
-            Письмо со ссылкой для входа отправлено на {email}. Откройте его и перейдите по ссылке —
-            вас вернёт сюда уже авторизованным.
+        <form onSubmit={handleSubmit}>
+          {error && <div className="err">{error}</div>}
+          <div style={{ marginBottom: 14 }}>
+            <label htmlFor="login-email">Рабочая почта</label>
+            <input
+              id="login-email"
+              type="email"
+              required
+              placeholder="имя@ze.studio"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={{ width: '100%' }}
+            />
           </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            {error && <div className="err">{error}</div>}
-            <div style={{ marginBottom: 14 }}>
-              <label htmlFor="login-email">Рабочая почта</label>
-              <input
-                id="login-email"
-                type="email"
-                required
-                placeholder="имя@ze.studio"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ width: '100%' }}
-              />
-            </div>
-            <button type="submit" className="btn" disabled={loading} style={{ width: '100%' }}>
-              {loading ? 'Отправляем…' : 'Прислать ссылку для входа'}
-            </button>
-          </form>
-        )}
+          <div style={{ marginBottom: 14 }}>
+            <label htmlFor="login-password">Пароль</label>
+            <input
+              id="login-password"
+              type="password"
+              required
+              placeholder="Пароль, который вам выдали"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ width: '100%' }}
+            />
+          </div>
+          <button type="submit" className="btn" disabled={loading} style={{ width: '100%' }}>
+            {loading ? 'Входим…' : 'Войти'}
+          </button>
+        </form>
       </div>
     </div>
   );
