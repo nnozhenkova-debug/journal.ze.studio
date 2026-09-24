@@ -139,6 +139,19 @@ textarea {
   font-size: 12px;
   color: var(--gray-1);
 }
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.app-nav a {
+  font-size: 13px;
+  color: var(--gray-1);
+  text-decoration: none;
+}
+.app-nav a:hover {
+  color: var(--near);
+}
 .app-header .user {
   display: flex;
   align-items: center;

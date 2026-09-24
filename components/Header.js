@@ -2,6 +2,13 @@ import Link from 'next/link';
 import Avatar from './Avatar';
 import SignOutButton from './SignOutButton';
 
+const NAV_LINKS = [
+  { href: '/projects', label: 'Проекты' },
+  { href: '/issues', label: 'Проблемы' },
+  { href: '/events', label: 'Журнал' },
+  { href: '/team', label: 'Команда' },
+];
+
 export default function Header({ profile, breadcrumb }) {
   return (
     <>
@@ -10,6 +17,13 @@ export default function Header({ profile, breadcrumb }) {
           <span className="name">Журнал студии</span>
           <span className="studio">ze.studio</span>
         </Link>
+        <nav className="app-nav">
+          {NAV_LINKS.map((item) => (
+            <Link key={item.href} href={item.href}>
+              {item.label}
+            </Link>
+          ))}
+        </nav>
         <div className="user">
           {profile && (
             <>
