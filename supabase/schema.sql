@@ -22,15 +22,28 @@ alter table public.profiles add column if not exists notification_prefs jsonb no
 alter table public.profiles add column if not exists timezone text not null default 'Москва, UTC+3';
 alter table public.profiles add column if not exists is_admin boolean not null default false;
 
+-- =====================================================================
+-- 1b. Функция-хелпер: является ли текущий пользователь администратором.
+-- Используется в политиках доступа ниже. security definer + search_path,
+-- чтобы работать надёжно независимо от политик select на profiles.
+-- Определена до первой политики, которая её использует.
+-- =====================================================================
+create or replace function public.is_admin()
+returns boolean as $$
+  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
+$$ language sql stable security definer set search_path = public;
+
 drop policy if exists "profiles readable by authenticated" on public.profiles;
 create policy "profiles readable by authenticated"
   on public.profiles for select
   using (auth.role() = 'authenticated');
 
 drop policy if exists "profiles updatable by owner" on public.profiles;
-create policy "profiles updatable by owner"
+drop policy if exists "profiles updatable by owner or admin" on public.profiles;
+create policy "profiles updatable by owner or admin"
   on public.profiles for update
-  using (auth.uid() = id);
+  using (auth.uid() = id or public.is_admin())
+  with check (auth.uid() = id or public.is_admin());
 
 -- =====================================================================
 -- 2. Ограничение регистрации доменом студии.
@@ -89,8 +102,9 @@ drop policy if exists "projects readable by authenticated" on public.projects;
 create policy "projects readable by authenticated"
   on public.projects for select using (auth.role() = 'authenticated');
 drop policy if exists "projects writable by authenticated" on public.projects;
-create policy "projects writable by authenticated"
-  on public.projects for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop policy if exists "projects writable by admin" on public.projects;
+create policy "projects writable by admin"
+  on public.projects for all using (public.is_admin()) with check (public.is_admin());
 
 -- =====================================================================
 -- 3b. Участники проекта (для карточки «Команда проекта»)
@@ -107,8 +121,9 @@ drop policy if exists "project_members readable by authenticated" on public.proj
 create policy "project_members readable by authenticated"
   on public.project_members for select using (auth.role() = 'authenticated');
 drop policy if exists "project_members writable by authenticated" on public.project_members;
-create policy "project_members writable by authenticated"
-  on public.project_members for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop policy if exists "project_members writable by admin" on public.project_members;
+create policy "project_members writable by admin"
+  on public.project_members for all using (public.is_admin()) with check (public.is_admin());
 
 create index if not exists project_members_project_idx on public.project_members (project_id);
 
@@ -132,8 +147,9 @@ drop policy if exists "stages readable by authenticated" on public.project_stage
 create policy "stages readable by authenticated"
   on public.project_stages for select using (auth.role() = 'authenticated');
 drop policy if exists "stages writable by authenticated" on public.project_stages;
-create policy "stages writable by authenticated"
-  on public.project_stages for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop policy if exists "stages writable by admin" on public.project_stages;
+create policy "stages writable by admin"
+  on public.project_stages for all using (public.is_admin()) with check (public.is_admin());
 
 create index if not exists project_stages_project_idx on public.project_stages (project_id);
 
@@ -168,8 +184,18 @@ drop policy if exists "retros readable by authenticated" on public.retros;
 create policy "retros readable by authenticated"
   on public.retros for select using (auth.role() = 'authenticated');
 drop policy if exists "retros writable by authenticated" on public.retros;
-create policy "retros writable by authenticated"
-  on public.retros for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+-- Разбито на insert/update (доступны любому участнику студии — ретро
+-- коллаборативное) и delete (только автор или админ, чтобы никто не мог
+-- стереть чужую ретро-сессию через прямой запрос к API).
+drop policy if exists "retros insertable by authenticated" on public.retros;
+create policy "retros insertable by authenticated"
+  on public.retros for insert with check (auth.role() = 'authenticated');
+drop policy if exists "retros updatable by authenticated" on public.retros;
+create policy "retros updatable by authenticated"
+  on public.retros for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop policy if exists "retros deletable by creator or admin" on public.retros;
+create policy "retros deletable by creator or admin"
+  on public.retros for delete using (created_by = auth.uid() or public.is_admin());
 
 create index if not exists retros_project_idx on public.retros (project_id);
 create index if not exists retros_date_idx on public.retros (scheduled_date);
@@ -185,8 +211,13 @@ drop policy if exists "retro_participants readable by authenticated" on public.r
 create policy "retro_participants readable by authenticated"
   on public.retro_participants for select using (auth.role() = 'authenticated');
 drop policy if exists "retro_participants writable by authenticated" on public.retro_participants;
-create policy "retro_participants writable by authenticated"
-  on public.retro_participants for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+-- Присоединиться к ретро можно только от своего имени.
+drop policy if exists "retro_participants insertable by self" on public.retro_participants;
+create policy "retro_participants insertable by self"
+  on public.retro_participants for insert with check (user_id = auth.uid());
+drop policy if exists "retro_participants deletable by self or admin" on public.retro_participants;
+create policy "retro_participants deletable by self or admin"
+  on public.retro_participants for delete using (user_id = auth.uid() or public.is_admin());
 
 create table if not exists public.retro_notes (
   id uuid primary key default gen_random_uuid(),
@@ -201,8 +232,18 @@ drop policy if exists "retro_notes readable by authenticated" on public.retro_no
 create policy "retro_notes readable by authenticated"
   on public.retro_notes for select using (auth.role() = 'authenticated');
 drop policy if exists "retro_notes writable by authenticated" on public.retro_notes;
-create policy "retro_notes writable by authenticated"
-  on public.retro_notes for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+-- insert — только от своего имени (author_id обязан совпадать с текущим
+-- пользователем, иначе можно было бы подписать заметку чужим именем);
+-- delete/update — автор заметки или админ.
+drop policy if exists "retro_notes insertable by author" on public.retro_notes;
+create policy "retro_notes insertable by author"
+  on public.retro_notes for insert with check (author_id = auth.uid());
+drop policy if exists "retro_notes updatable by author or admin" on public.retro_notes;
+create policy "retro_notes updatable by author or admin"
+  on public.retro_notes for update using (author_id = auth.uid() or public.is_admin()) with check (author_id = auth.uid() or public.is_admin());
+drop policy if exists "retro_notes deletable by author or admin" on public.retro_notes;
+create policy "retro_notes deletable by author or admin"
+  on public.retro_notes for delete using (author_id = auth.uid() or public.is_admin());
 
 create index if not exists retro_notes_retro_idx on public.retro_notes (retro_id);
 
@@ -244,8 +285,17 @@ drop policy if exists "retro_energy readable by authenticated" on public.retro_e
 create policy "retro_energy readable by authenticated"
   on public.retro_energy for select using (auth.role() = 'authenticated');
 drop policy if exists "retro_energy writable by authenticated" on public.retro_energy;
-create policy "retro_energy writable by authenticated"
-  on public.retro_energy for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+-- Свой уровень энергии можно только отмечать/менять от своего имени
+-- (upsert из клиента = insert + update, поэтому нужны обе политики).
+drop policy if exists "retro_energy insertable by self" on public.retro_energy;
+create policy "retro_energy insertable by self"
+  on public.retro_energy for insert with check (user_id = auth.uid());
+drop policy if exists "retro_energy updatable by self" on public.retro_energy;
+create policy "retro_energy updatable by self"
+  on public.retro_energy for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "retro_energy deletable by self or admin" on public.retro_energy;
+create policy "retro_energy deletable by self or admin"
+  on public.retro_energy for delete using (user_id = auth.uid() or public.is_admin());
 
 create index if not exists retro_energy_retro_idx on public.retro_energy (retro_id);
 
@@ -275,8 +325,9 @@ drop policy if exists "issues readable by authenticated" on public.issues;
 create policy "issues readable by authenticated"
   on public.issues for select using (auth.role() = 'authenticated');
 drop policy if exists "issues writable by authenticated" on public.issues;
-create policy "issues writable by authenticated"
-  on public.issues for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop policy if exists "issues writable by admin" on public.issues;
+create policy "issues writable by admin"
+  on public.issues for all using (public.is_admin()) with check (public.is_admin());
 
 create index if not exists issues_project_idx on public.issues (project_id);
 create index if not exists issues_status_idx on public.issues (status);
@@ -299,8 +350,17 @@ drop policy if exists "events readable by authenticated" on public.events;
 create policy "events readable by authenticated"
   on public.events for select using (auth.role() = 'authenticated');
 drop policy if exists "events writable by authenticated" on public.events;
-create policy "events writable by authenticated"
-  on public.events for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+-- insert — при публикации ретро запись в ленту добавляет любой участник;
+-- менять/удалять прошлые записи ленты событий может только админ.
+drop policy if exists "events insertable by authenticated" on public.events;
+create policy "events insertable by authenticated"
+  on public.events for insert with check (auth.role() = 'authenticated');
+drop policy if exists "events updatable by admin" on public.events;
+create policy "events updatable by admin"
+  on public.events for update using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "events deletable by admin" on public.events;
+create policy "events deletable by admin"
+  on public.events for delete using (public.is_admin());
 
 create index if not exists events_created_idx on public.events (created_at desc);
 
@@ -365,3 +425,13 @@ values
   ('ze-studio', 'issue_resolved', 'Проблема «Счёт за сентябрь не выставлен клиенту» помечена решённой', 'Изменил: Аня К.', now() - interval '6 days'),
   ('avrora', 'retro_completed', 'Завершено ретро «Спринт 13»', 'Участники: Аня К., Максим Р., Лена Б.', now() - interval '9 days')
 on conflict do nothing;
+
+-- =====================================================================
+-- 9. Первый администратор.
+-- Проекты, этапы, участники проектов и проблемы теперь редактируются
+-- только админами (is_admin = true) — выше это ужесточили политиками RLS.
+-- Без этой строки после применения схемы управлять ими через приложение
+-- не сможет никто. Замените email, если нужно назначить другого человека,
+-- или выдайте флаг is_admin ещё кому-то прямо в Table Editor → profiles.
+-- =====================================================================
+update public.profiles set is_admin = true where email = 'n.nozhenkova@ze.studio';
