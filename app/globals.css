@@ -1194,8 +1194,10 @@ textarea {
    Правило: везде, где есть панель кнопок внизу страницы, она прибита
    к нижнему краю экрана (position: fixed), а не "плывёт" в потоке —
    иначе на страницах с малым количеством контента она повисает
-   посередине, а не у края. Ширина и отступы совпадают с .shell,
-   чтобы кнопки были на одной вертикали с остальным контентом. */
+   посередине, а не у края. Сама плашка (фон, тень, бордер) растянута
+   на всю ширину экрана; кнопки внутри — на одной вертикали с
+   остальным контентом за счёт вложенного .footer-bar-inner той же
+   ширины, что и .shell. */
 .retro-footer,
 .prepare-footer {
   position: fixed;
@@ -1203,12 +1205,13 @@ textarea {
   right: 0;
   bottom: 0;
   z-index: 30;
-  max-width: 1071px;
-  margin: 0 auto;
   background: var(--white);
   border-top: 1px solid var(--border);
-  border-radius: 14px 14px 0 0;
   box-shadow: 0 -8px 24px rgba(17, 17, 17, 0.06);
+}
+.footer-bar-inner {
+  max-width: 1071px;
+  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1800,10 +1803,11 @@ textarea {
   gap: var(--space-3);
 }
 .context-card {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4) 18px;
+  padding: var(--space-4) 22px;
+  border-bottom: 1px solid var(--divider);
+}
+.context-card:last-child {
+  border-bottom: none;
 }
 .context-card-label {
   font-size: 11px;

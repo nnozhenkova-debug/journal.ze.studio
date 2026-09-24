@@ -190,7 +190,10 @@ export default function PrepareForm({ templates, projects, initialTemplateId, in
         </div>
 
         <div className="prepare-side">
-          <div className="micro-label">Контекст перед ретро</div>
+        <div className="side-card">
+          <div className="side-card-head">
+            <span className="micro-label">Контекст перед ретро</span>
+          </div>
 
           {!initialProjectId && (
             <div className="context-card">
@@ -267,20 +270,23 @@ export default function PrepareForm({ templates, projects, initialTemplateId, in
               placeholder="Коротко, что стоит держать в голове на этом ретро…"
             />
           </div>
+        </div>
 
-          {error && <div className="err" style={{ marginTop: 4 }}>{error}</div>}
+        {error && <div className="err">{error}</div>}
         </div>
       </div>
 
       <div className="prepare-footer">
-        <Link href={projectId ? `/projects/${projectId}` : '/'} className="btn btn-secondary">
-          ← Назад к выбору шаблона
-        </Link>
-        <button type="button" className="btn btn-primary" onClick={handleStart} disabled={starting || !projectId}>
-          {starting
-            ? (isFuture ? 'Планируем…' : 'Открываем сессию…')
-            : (isFuture ? 'Запланировать ретро →' : 'Начать ретро →')}
-        </button>
+        <div className="footer-bar-inner">
+          <Link href={projectId ? `/projects/${projectId}` : '/'} className="btn btn-secondary">
+            ← Назад к выбору шаблона
+          </Link>
+          <button type="button" className="btn btn-primary" onClick={handleStart} disabled={starting || !projectId}>
+            {starting
+              ? (isFuture ? 'Планируем…' : 'Открываем сессию…')
+              : (isFuture ? 'Запланировать ретро →' : 'Начать ретро →')}
+          </button>
+        </div>
       </div>
     </div>
   );

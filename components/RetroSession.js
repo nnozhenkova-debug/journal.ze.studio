@@ -510,16 +510,18 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
           )}
 
           <div className="retro-footer">
-            <span className="retro-footer-meta">
-              {notes.length} {notes.length === 1 ? 'заметка' : 'заметок'} · {participants.length} {participants.length === 1 ? 'участник' : 'участника'}
-            </span>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <Link href={retro.project_id ? `/projects/${retro.project_id}` : '/'} className="btn btn-secondary">
-                Сохранить и выйти
-              </Link>
-              <button type="button" className="btn btn-primary" onClick={finishRetro} disabled={finishing}>
-                {finishing ? 'Завершаем…' : 'Завершить ретро →'}
-              </button>
+            <div className="footer-bar-inner">
+              <span className="retro-footer-meta">
+                {notes.length} {notes.length === 1 ? 'заметка' : 'заметок'} · {participants.length} {participants.length === 1 ? 'участник' : 'участника'}
+              </span>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <Link href={retro.project_id ? `/projects/${retro.project_id}` : '/'} className="btn btn-secondary">
+                  Сохранить и выйти
+                </Link>
+                <button type="button" className="btn btn-primary" onClick={finishRetro} disabled={finishing}>
+                  {finishing ? 'Завершаем…' : 'Завершить ретро →'}
+                </button>
+              </div>
             </div>
           </div>
         </>
@@ -560,12 +562,14 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
           </div>
 
           <div className="retro-footer">
-            <Link href={retro.project_id ? `/projects/${retro.project_id}` : '/'} className="btn btn-secondary">
-              ← Назад к проекту
-            </Link>
-            <button type="button" className="btn btn-primary" onClick={startRetroNow} disabled={launching}>
-              {launching ? 'Начинаем…' : 'Начать ретро сейчас →'}
-            </button>
+            <div className="footer-bar-inner">
+              <Link href={retro.project_id ? `/projects/${retro.project_id}` : '/'} className="btn btn-secondary">
+                ← Назад к проекту
+              </Link>
+              <button type="button" className="btn btn-primary" onClick={startRetroNow} disabled={launching}>
+                {launching ? 'Начинаем…' : 'Начать ретро сейчас →'}
+              </button>
+            </div>
           </div>
         </>
       ) : (
