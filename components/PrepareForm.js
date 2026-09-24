@@ -7,6 +7,10 @@ import { createClient } from '../lib/supabase/client';
 import { minutesToHours, percent } from '../lib/format';
 import { STAGE_STATE_LABEL } from '../lib/retro-constants';
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function PrepareForm({ templates, projects, initialTemplateId, initialProjectId, profileId }) {
   const [templateId, setTemplateId] = useState(initialTemplateId);
   const [projectId, setProjectId] = useState(initialProjectId || projects[0]?.id || null);
@@ -17,7 +21,10 @@ export default function PrepareForm({ templates, projects, initialTemplateId, in
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState(todayISO());
   const router = useRouter();
+
+  const isFuture = scheduledDate > todayISO();
 
   const template = useMemo(() => templates.find((t) => t.id === templateId) || templates[0], [templates, templateId]);
   const project = projects.find((p) => p.id === projectId) || null;
@@ -66,7 +73,7 @@ export default function PrepareForm({ templates, projects, initialTemplateId, in
     setError('');
     const supabase = createClient();
     const title = stage ? `Ретро: ${stage.name}` : `Ретро «${project?.name || ''}»`;
-    const today = new Date().toISOString().slice(0, 10);
+    const scheduling = isFuture;
 
     const { data, error: insertError } = await supabase
       .from('retros')
@@ -75,9 +82,9 @@ export default function PrepareForm({ templates, projects, initialTemplateId, in
         stage_id: stageId,
         template: templateId,
         title,
-        scheduled_date: today,
-        status: 'in_progress',
-        started_at: new Date().toISOString(),
+        scheduled_date: scheduledDate,
+        status: scheduling ? 'scheduled' : 'in_progress',
+        started_at: scheduling ? null : new Date().toISOString(),
         stage_context: stage
           ? {
               stage_name: stage.name,
@@ -95,7 +102,7 @@ export default function PrepareForm({ templates, projects, initialTemplateId, in
 
     if (insertError || !data) {
       setStarting(false);
-      setError('Не удалось начать ретро. Попробуйте ещё раз.');
+      setError(scheduling ? 'Не удалось запланировать ретро. Попробуйте ещё раз.' : 'Не удалось начать ретро. Попробуйте ещё раз.');
       return;
     }
 
@@ -237,6 +244,20 @@ export default function PrepareForm({ templates, projects, initialTemplateId, in
           )}
 
           <div className="context-card">
+            <div className="context-card-label">Дата ретро</div>
+            <input
+              type="date"
+              className="context-dropdown"
+              value={scheduledDate}
+              min={todayISO()}
+              onChange={(e) => setScheduledDate(e.target.value || todayISO())}
+            />
+            {isFuture && (
+              <p className="context-card-hint">Ретро будет запланировано, а не начнётся сразу</p>
+            )}
+          </div>
+
+          <div className="context-card">
             <div className="context-card-label">Комментарий к этапу</div>
             <textarea
               className="context-textarea"
@@ -256,7 +277,9 @@ export default function PrepareForm({ templates, projects, initialTemplateId, in
           ← Назад к выбору шаблона
         </Link>
         <button type="button" className="btn btn-primary" onClick={handleStart} disabled={starting || !projectId}>
-          {starting ? 'Открываем сессию…' : 'Начать ретро →'}
+          {starting
+            ? (isFuture ? 'Планируем…' : 'Открываем сессию…')
+            : (isFuture ? 'Запланировать ретро →' : 'Начать ретро →')}
         </button>
       </div>
     </div>

@@ -1325,6 +1325,10 @@ textarea {
 .action-item-remove:hover {
   color: var(--err-fg);
 }
+.highlight-item-card {
+  background: #f3faf5;
+  border-color: #bfe6cc;
+}
 .action-compose {
   border: 1.5px dashed #ccc5b8;
   border-radius: var(--radius-md);
@@ -1817,6 +1821,11 @@ textarea {
   padding: 8px 14px;
   font-size: 13px;
   color: var(--near);
+}
+.context-card-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--gray-1);
 }
 .context-stat-value {
   font-size: 28px;

@@ -5,6 +5,7 @@ import {
   getRetro,
   listRetroNotes,
   listActionItems,
+  listRetroHighlights,
   listRetroEnergy,
   listRetroParticipants,
 } from '../../../lib/data';
@@ -17,22 +18,24 @@ export default async function RetroSessionPage({ params }) {
   if (!retro) notFound();
 
   const template = getTemplate(retro.template);
-  const [profile, notes, actionItems, energy, participants] = await Promise.all([
+  const [profile, notes, actionItems, highlights, energy, participants] = await Promise.all([
     getCurrentProfile(),
     listRetroNotes(retro.id),
     listActionItems(retro.id),
+    listRetroHighlights(retro.id),
     listRetroEnergy(retro.id),
     listRetroParticipants(retro.id),
   ]);
 
   return (
     <div className="shell">
-      <div className={`section${retro.status === 'in_progress' ? ' has-action-footer' : ''}`}>
+      <div className={`section${retro.status === 'in_progress' || retro.status === 'scheduled' ? ' has-action-footer' : ''}`}>
         <RetroSession
           retro={retro}
           template={template}
           initialNotes={notes}
           initialActionItems={actionItems}
+          initialHighlights={highlights}
           initialEnergy={energy}
           participants={participants}
           profile={profile}

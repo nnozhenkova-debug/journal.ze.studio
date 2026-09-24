@@ -271,6 +271,33 @@ begin
 exception when duplicate_object then null;
 end $$;
 
+-- Позитивные итоги ретро — опыт, который стоит растиражировать на другие
+-- проекты. Отдельно от action items, которые фиксируют то, что требует
+-- решения/донастройки процессов.
+create table if not exists public.retro_highlights (
+  id uuid primary key default gen_random_uuid(),
+  retro_id uuid not null references public.retros(id) on delete cascade,
+  text text not null,
+  author_id uuid references auth.users(id) on delete set null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table public.retro_highlights enable row level security;
+drop policy if exists "retro_highlights readable by authenticated" on public.retro_highlights;
+create policy "retro_highlights readable by authenticated"
+  on public.retro_highlights for select using (auth.role() = 'authenticated');
+drop policy if exists "retro_highlights writable by authenticated" on public.retro_highlights;
+create policy "retro_highlights writable by authenticated"
+  on public.retro_highlights for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create index if not exists retro_highlights_retro_idx on public.retro_highlights (retro_id);
+
+do $$
+begin
+  alter publication supabase_realtime add table public.retro_highlights;
+exception when duplicate_object then null;
+end $$;
+
 -- Отметки уровня энергии участников — для шаблона «Энергия команды».
 create table if not exists public.retro_energy (
   retro_id uuid not null references public.retros(id) on delete cascade,

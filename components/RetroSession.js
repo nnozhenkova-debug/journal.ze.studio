@@ -11,6 +11,7 @@ import {
   durationLabel,
   splitTitleGold,
   shortName,
+  dayMonthShort,
 } from '../lib/format';
 import { RETRO_COLUMN_COLORS, ENERGY_LEVELS } from '../lib/retro-constants';
 
@@ -91,13 +92,16 @@ function NoteColumnBody({ col, notes, drafts, setDrafts, busyColumn, errorColumn
   );
 }
 
-export default function RetroSession({ retro, template, initialNotes, initialActionItems, initialEnergy, participants, profile }) {
+export default function RetroSession({ retro, template, initialNotes, initialActionItems, initialHighlights, initialEnergy, participants, profile }) {
   const boardType = template.boardType || 'columns';
   const [notes, setNotes] = useState(initialNotes);
   const [actionItems, setActionItems] = useState(initialActionItems || []);
+  const [highlights, setHighlights] = useState(initialHighlights || []);
   const [energy, setEnergy] = useState(initialEnergy || []);
   const [status, setStatus] = useState(retro.status);
   const [published, setPublished] = useState(retro.published);
+  const [startedAtValue, setStartedAtValue] = useState(retro.started_at);
+  const [launching, setLaunching] = useState(false);
   const [drafts, setDrafts] = useState({});
   const [busyColumn, setBusyColumn] = useState(null);
   const [errorColumn, setErrorColumn] = useState(null);
@@ -111,6 +115,9 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
   const [stepDue, setStepDue] = useState('');
   const [addingStep, setAddingStep] = useState(false);
 
+  const [highlightText, setHighlightText] = useState('');
+  const [addingHighlight, setAddingHighlight] = useState(false);
+
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -118,9 +125,13 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'retro_notes', filter: `retro_id=eq.${retro.id}` }, (payload) => {
         setNotes((prev) => (prev.some((n) => n.id === payload.new.id) ? prev : [...prev, payload.new]));
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'retro_highlights', filter: `retro_id=eq.${retro.id}` }, (payload) => {
+        setHighlights((prev) => (prev.some((h) => h.id === payload.new.id) ? prev : [...prev, payload.new]));
+      })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'retros', filter: `id=eq.${retro.id}` }, (payload) => {
         setStatus(payload.new.status);
         setPublished(payload.new.published);
+        setStartedAtValue(payload.new.started_at);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'retro_energy', filter: `retro_id=eq.${retro.id}` }, (payload) => {
         const row = payload.new;
@@ -213,6 +224,34 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
     await supabase.from('retro_action_items').delete().eq('id', id);
   }
 
+  async function addHighlight() {
+    const text = highlightText.trim();
+    if (!text) return;
+    setAddingHighlight(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('retro_highlights')
+      .insert({
+        retro_id: retro.id,
+        text,
+        author_id: profile?.id || null,
+        sort_order: highlights.length,
+      })
+      .select('*, profiles(id,display_name,avatar_url)')
+      .single();
+    setAddingHighlight(false);
+    if (!error && data) {
+      setHighlights((prev) => [...prev, data]);
+      setHighlightText('');
+    }
+  }
+
+  async function removeHighlight(id) {
+    setHighlights((prev) => prev.filter((h) => h.id !== id));
+    const supabase = createClient();
+    await supabase.from('retro_highlights').delete().eq('id', id);
+  }
+
   function copyInviteLink() {
     if (typeof window === 'undefined') return;
     navigator.clipboard?.writeText(window.location.href).then(() => {
@@ -234,6 +273,24 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
     if (!error) setStatus('completed');
   }
 
+  async function startRetroNow() {
+    setLaunching(true);
+    const supabase = createClient();
+    const startedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from('retros')
+      .update({ status: 'in_progress', started_at: startedAt })
+      .eq('id', retro.id);
+    setLaunching(false);
+    if (!error) {
+      setStatus('in_progress');
+      setStartedAtValue(startedAt);
+      if (profile?.id && !participants.some((p) => p.user_id === profile.id)) {
+        await supabase.from('retro_participants').insert({ retro_id: retro.id, user_id: profile.id });
+      }
+    }
+  }
+
   async function publishRetro() {
     setPublishing(true);
     const supabase = createClient();
@@ -250,15 +307,25 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
         title: `Завершено ретро «${retro.title}»`,
         subtitle: participantNames.length ? `Участники: ${participantNames.join(', ')}` : null,
       });
+      if (highlights.length > 0) {
+        await supabase.from('events').insert({
+          project_id: retro.project_id,
+          type: 'note',
+          title: `Позитивный опыт из «${retro.title}»`,
+          subtitle: highlights.map((h) => h.text).join(' · '),
+        });
+      }
       setPublished(true);
     }
     setPublishing(false);
   }
 
+  const isScheduled = status === 'scheduled';
   const isLive = status === 'in_progress';
   const isSummary = status === 'completed' && !published;
   const isPublished = status === 'completed' && published;
 
+  const isFinished = isSummary || isPublished;
   const shortTitle = retro.title.replace(/^Ретро:\s*/, '').replace(/^Ретро\s*«([^»]+)»$/, '$1');
   const { rest, last } = splitTitleGold(shortTitle);
   const projectName = retro.projects?.name || '';
@@ -276,7 +343,7 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
             ) : (
               <Link href={retro.project_id ? `/projects/${retro.project_id}` : '/'}>{crumbTitle}</Link>
             )}
-            {!isLive && (
+            {isFinished && (
               <>
                 <span className="crumb-sep">→</span>
                 <span>Итоги</span>
@@ -295,9 +362,9 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16, marginTop: 28, marginBottom: isLive ? 0 : 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16, marginTop: 28, marginBottom: 0 }}>
         <div>
-          <div className="micro-label">{isLive ? 'Ретро-сессия' : 'Итоги ретро'}</div>
+          <div className="micro-label">{isLive ? 'Ретро-сессия' : isScheduled ? 'Ретро запланировано' : 'Итоги ретро'}</div>
           <h1 className="h1" style={{ marginTop: 14 }}>
             {rest}
             <span style={{ color: 'var(--gold)' }}>{last}.</span>
@@ -305,8 +372,9 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
           <p className="h1-sub" style={{ marginTop: 10 }}>
             {projectName && `${projectName} · `}
             {template.name}
-            {isLive && ` · начато ${startedAtLabel(retro.started_at || retro.created_at)}`}
-            {!isLive && ` · ${fullDateLabel(retro.completed_at || retro.scheduled_date)}`}
+            {isLive && ` · начато ${startedAtLabel(startedAtValue || retro.created_at)}`}
+            {isScheduled && ` · запланировано на ${dayMonthShort(retro.scheduled_date)}`}
+            {isFinished && ` · ${fullDateLabel(retro.completed_at || retro.scheduled_date)}`}
           </p>
         </div>
 
@@ -455,6 +523,51 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
             </div>
           </div>
         </>
+      ) : isScheduled ? (
+        <>
+          <div className="side-card" style={{ maxWidth: 480, marginTop: 8 }}>
+            <div className="side-card-head">
+              <span className="micro-label">Контекст</span>
+            </div>
+            <div style={{ padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div className="context-card-label" style={{ marginBottom: 4 }}>Дата</div>
+                <span className="stat-value" style={{ fontSize: 18 }}>{fullDateLabel(retro.scheduled_date)}</span>
+              </div>
+              {retro.stage_context?.stage_name && (
+                <div>
+                  <div className="context-card-label" style={{ marginBottom: 4 }}>Этап</div>
+                  <span>{retro.stage_context.stage_name}</span>
+                </div>
+              )}
+              {retro.stage_context?.comment && (
+                <div>
+                  <div className="context-card-label" style={{ marginBottom: 4 }}>Комментарий</div>
+                  <span>{retro.stage_context.comment}</span>
+                </div>
+              )}
+              {participants.length > 0 && (
+                <div>
+                  <div className="context-card-label" style={{ marginBottom: 8 }}>Участники</div>
+                  <div className="retro-participants">
+                    {participants.map((p, i) => (
+                      <Avatar key={p.user_id} id={p.user_id} name={p.profiles?.display_name} url={p.profiles?.avatar_url} size={32} style={{ marginLeft: i === 0 ? 0 : -10, border: '2px solid var(--bg)' }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="retro-footer">
+            <Link href={retro.project_id ? `/projects/${retro.project_id}` : '/'} className="btn btn-secondary">
+              ← Назад к проекту
+            </Link>
+            <button type="button" className="btn btn-primary" onClick={startRetroNow} disabled={launching}>
+              {launching ? 'Начинаем…' : 'Начать ретро сейчас →'}
+            </button>
+          </div>
+        </>
       ) : (
         <>
           <div className="stat-grid">
@@ -555,6 +668,46 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
                       value={stepDue}
                       onChange={(e) => setStepDue(e.target.value)}
                       placeholder="Срок"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="side-card" style={{ marginTop: 24 }}>
+                <div className="side-card-head">
+                  <span className="micro-label">Позитивные итоги</span>
+                  {highlights.length > 0 && <span className="record-count">{highlights.length}</span>}
+                </div>
+                <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <p style={{ fontSize: 11, color: 'var(--gray-1)', margin: '0 0 4px' }}>
+                    Опыт, который стоит растиражировать на другие проекты
+                  </p>
+                  {highlights.map((h) => (
+                    <div key={h.id} className="action-item-card highlight-item-card">
+                      <div>
+                        <div className="action-item-title">{h.text}</div>
+                        {h.profiles?.display_name && (
+                          <div className="action-item-tags">
+                            <span className="action-item-assignee">{shortName(h.profiles.display_name) || h.profiles.display_name}</span>
+                          </div>
+                        )}
+                      </div>
+                      <button type="button" className="action-item-remove" onClick={() => removeHighlight(h.id)} title="Удалить">×</button>
+                    </div>
+                  ))}
+                  <div className="action-compose">
+                    <textarea
+                      rows={2}
+                      value={highlightText}
+                      onChange={(e) => setHighlightText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          addHighlight();
+                        }
+                      }}
+                      placeholder="Что сработало хорошо и стоит повторить…"
+                      disabled={addingHighlight}
                     />
                   </div>
                 </div>
