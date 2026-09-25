@@ -594,6 +594,23 @@ textarea {
   flex-direction: column;
   gap: 4px;
   margin-bottom: var(--space-3);
+  /* Показываем максимум 4 шаблона, остальные — по скроллу внутри блока,
+     чтобы список не растягивал hero-секцию по мере добавления шаблонов. */
+  max-height: 194px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.template-list::-webkit-scrollbar {
+  width: 6px;
+}
+.template-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.template-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
 }
 .template-row {
   width: 100%;
@@ -1207,6 +1224,27 @@ textarea {
   display: grid;
   gap: 24px;
   margin-top: var(--space-8);
+}
+/* ---------- Свободная доска (шаблон "free_board") ---------- */
+.free-board-wrap {
+  margin-top: var(--space-8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  height: 70vh;
+  min-height: 480px;
+}
+.free-board-wrap.is-readonly {
+  height: 60vh;
+  min-height: 420px;
+}
+.free-board-loading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gray-2);
+  font-size: 13px;
 }
 .retro-col {
   display: flex;

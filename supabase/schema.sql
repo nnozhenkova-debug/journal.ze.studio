@@ -160,7 +160,7 @@ create table if not exists public.retros (
   project_id text not null references public.projects(id) on delete cascade,
   stage_id uuid references public.project_stages(id) on delete set null,
   template text not null check (template in (
-    'start_stop_continue', '4l', 'mad_sad_glad', 'sailboat', 'daki', 'team_energy'
+    'start_stop_continue', '4l', 'mad_sad_glad', 'sailboat', 'daki', 'team_energy', 'free_board'
   )),
   title text not null,
   scheduled_date date not null,
@@ -171,6 +171,7 @@ create table if not exists public.retros (
   stage_context jsonb not null default '{}'::jsonb,
   published boolean not null default false,
   published_at timestamptz,
+  board_data jsonb,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
@@ -178,6 +179,8 @@ alter table public.retros enable row level security;
 
 alter table public.retros add column if not exists published boolean not null default false;
 alter table public.retros add column if not exists published_at timestamptz;
+-- Содержимое шаблона «Свободная доска» (Excalidraw-сцена: { elements: [...] }).
+alter table public.retros add column if not exists board_data jsonb;
 
 drop policy if exists "retros readable by authenticated" on public.retros;
 create policy "retros readable by authenticated"
@@ -438,7 +441,7 @@ alter table public.project_stages add constraint project_stages_state_check chec
 
 alter table public.retros drop constraint if exists retros_template_check;
 alter table public.retros add constraint retros_template_check check (template in (
-  'start_stop_continue', '4l', 'mad_sad_glad', 'sailboat', 'daki', 'team_energy'
+  'start_stop_continue', '4l', 'mad_sad_glad', 'sailboat', 'daki', 'team_energy', 'free_board'
 ));
 alter table public.retros drop constraint if exists retros_status_check;
 alter table public.retros add constraint retros_status_check check (status in ('scheduled', 'in_progress', 'completed'));

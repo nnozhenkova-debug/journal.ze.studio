@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Avatar from './Avatar';
 import ErrorCard from './ErrorCard';
+import FreeBoard from './FreeBoard';
 import { createClient } from '../lib/supabase/client';
 import {
   startedAtLabel,
@@ -491,7 +492,9 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
 
       {isLive ? (
         <>
-          {boardType === 'quadrant' ? (
+          {boardType === 'freeform' ? (
+            <FreeBoard retroId={retro.id} initialBoardData={retro.board_data} readOnly={false} />
+          ) : boardType === 'quadrant' ? (
             <div className="retro-quadrant-grid">
               {template.columns.map((col) => (
                 <div key={col.key} className="retro-quadrant-cell">
@@ -580,7 +583,10 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
           <div className="retro-footer">
             <div className="footer-bar-inner">
               <span className="retro-footer-meta">
-                {notes.length} {notes.length === 1 ? 'заметка' : 'заметок'} · {participants.length} {participants.length === 1 ? 'участник' : 'участника'}
+                {boardType !== 'freeform' && (
+                  <>{notes.length} {notes.length === 1 ? 'заметка' : 'заметок'} · </>
+                )}
+                {participants.length} {participants.length === 1 ? 'участник' : 'участника'}
               </span>
               <div style={{ display: 'flex', gap: 12 }}>
                 <Link href={retro.project_id ? `/projects/${retro.project_id}` : '/'} className="btn btn-secondary">
@@ -690,7 +696,10 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
 
           <div className="retro-summary-grid">
             <div>
-              <div className="micro-label">Заметки сессии</div>
+              <div className="micro-label">{boardType === 'freeform' ? 'Доска ретро' : 'Заметки сессии'}</div>
+              {boardType === 'freeform' ? (
+                <FreeBoard retroId={retro.id} initialBoardData={retro.board_data} readOnly />
+              ) : (
               <div style={{ marginTop: 20 }}>
                 {template.columns.map((col, ci) => {
                   const items = notesByColumn[col.key] || [];
@@ -717,6 +726,7 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
                   );
                 })}
               </div>
+              )}
             </div>
 
             <div>
