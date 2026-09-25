@@ -353,7 +353,7 @@ textarea {
 .hero-section {
   border-bottom: 2px solid var(--border);
   padding-top: var(--space-5);
-  padding-bottom: var(--space-12);
+  padding-bottom: var(--space-6);
 }
 /* Оба «плеча» hero-grid начинаются с чистого блока (.retro-calendar слева,
    .side-card справа) без какого-либо контента над ними внутри колонки —
@@ -366,7 +366,7 @@ textarea {
   display: grid;
   grid-template-columns: 551px 360px;
   gap: 64px;
-  margin-top: var(--space-6);
+  margin-top: var(--space-4);
 }
 .hero-head {
   display: flex;
@@ -457,7 +457,7 @@ textarea {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--gray-2);
-  padding: 10px 12px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--border);
 }
 .retro-calendar-weekday.is-weekend {
@@ -469,7 +469,7 @@ textarea {
 .retro-day {
   position: relative;
   height: 100%;
-  min-height: 96px;
+  min-height: 64px;
   padding: var(--space-2) 10px;
   border-bottom: 1px solid var(--divider);
   overflow: visible;
@@ -575,7 +575,7 @@ textarea {
    задаёт высоту всей hero-секции (календарь дотягивается до неё), так что
    более компактный список делает короче оба блока сразу, а не только этот. */
 .hero-template-body {
-  padding: 16px 22px 18px;
+  padding: 14px 22px 16px;
 }
 .template-heading {
   font-size: 16px;
@@ -587,12 +587,12 @@ textarea {
   font-size: 13px;
   color: var(--gray-2);
   line-height: 1.5;
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 .template-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   margin-bottom: var(--space-3);
 }
 .template-row {
@@ -601,7 +601,7 @@ textarea {
   background: var(--white);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 8px var(--space-4);
+  padding: 5px var(--space-4);
   cursor: pointer;
 }
 .template-row.is-selected {
@@ -993,7 +993,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: 18px 22px;
+  padding: 14px 22px;
   border-bottom: 1px solid var(--divider);
 }
 .member-row {
