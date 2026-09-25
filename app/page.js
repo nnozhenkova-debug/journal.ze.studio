@@ -7,7 +7,6 @@ import {
   listIssues,
   listEvents,
   listRetros,
-  listProjects,
 } from '../lib/data';
 import { RETRO_TEMPLATES, SEVERITY_LABEL, SEVERITY_PILL_CLASS, PROJECT_PALETTE } from '../lib/retro-constants';
 import { monthYearParts, monthPrepositional, buildMonthWeeks, isSameDay, daysAgoLabel } from '../lib/format';
@@ -31,6 +30,7 @@ function RetroBadge({ retro }) {
     <span
       className={`retro-badge${done ? ' is-done' : ''}`}
       style={{ background: pal.bg, borderColor: pal.border, color: pal.fg }}
+      title={retro.projects?.name || undefined}
     >
       {done ? '✓ ' : ''}{retro.title.replace(/^Ретро:\s*/, '')}
     </span>
@@ -79,12 +79,11 @@ export default async function Page({ searchParams }) {
   const prevMonth = new Date(year, month - 1, 1);
   const nextMonth = new Date(year, month + 1, 1);
 
-  const [profile, issues, events, retros, projects] = await Promise.all([
+  const [profile, issues, events, retros] = await Promise.all([
     getCurrentProfile(),
     listIssues({ status: 'open' }),
     listEvents({ limit: 5 }),
     listRetros({ from, to }),
-    listProjects(),
   ]);
 
   const retrosByDay = new Map();
@@ -116,18 +115,6 @@ export default async function Page({ searchParams }) {
                 <br />
                 <span style={{ color: 'var(--gold)' }}>{yearLabel}</span>
               </h1>
-            </div>
-            <div className="hero-legend">
-              {projects.map((p) => {
-                const pal = PROJECT_PALETTE[p.color_key] || PROJECT_PALETTE.slate;
-                return (
-                  <span key={p.id} className="legend-item">
-                    <span className="legend-swatch" style={{ background: pal.bg, borderColor: pal.border }} />
-                    {p.name}
-                  </span>
-                );
-              })}
-              <Link href="/projects" className="legend-link">Все проекты</Link>
             </div>
           </div>
 
