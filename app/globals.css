@@ -344,14 +344,15 @@ textarea {
 }
 /* Оба «плеча» hero-grid начинаются с чистого блока (.retro-calendar слева,
    .side-card справа) без какого-либо контента над ними внутри колонки —
-   поэтому их верхние края всегда совпадают (align-items: start), независимо
-   от разной высоты остального содержимого. Месяц/навигация/легенда — общий
-   заголовок НАД сеткой, а не часть одной из колонок. */
+   поэтому их верхние края всегда совпадают, независимо от разной высоты
+   остального содержимого. Месяц/навигация/легенда — общий заголовок НАД
+   сеткой, а не часть одной из колонок. align-items: stretch (по умолчанию)
+   тянет обе колонки на одинаковую высоту — более короткая (календарь)
+   дотягивается до высоты блока «Провести ретро», так что и низ совпадает. */
 .hero-grid {
   display: grid;
   grid-template-columns: 551px 360px;
   gap: 64px;
-  align-items: start;
   margin-top: var(--space-6);
 }
 .hero-head {
@@ -408,6 +409,9 @@ textarea {
 
 /* ---------- Retro calendar ---------- */
 .retro-calendar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -416,6 +420,14 @@ textarea {
 .retro-calendar-row {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  flex: 0 0 auto;
+}
+/* Строки недель (все .retro-calendar-row, кроме первой — заголовка дней
+   недели) делят между собой оставшуюся высоту календаря поровну, так что
+   низ календаря всегда совпадает с низом блока «Провести ретро» справа,
+   а сами строки остаются одной высоты друг с другом. */
+.retro-calendar-row:not(:first-child) {
+  flex: 1;
 }
 .retro-calendar-weekday {
   text-align: center;
@@ -435,7 +447,8 @@ textarea {
 }
 .retro-day {
   position: relative;
-  height: 96px;
+  height: 100%;
+  min-height: 96px;
   padding: var(--space-2) 10px;
   border-bottom: 1px solid var(--divider);
   overflow: visible;
@@ -451,8 +464,10 @@ textarea {
   background: #faf8f4;
 }
 .retro-day.is-today {
+  /* Только заливка фона — без акцентной линии по краю, чтобы не «ломать»
+     единый цвет горизонтальных/вертикальных разделителей сетки. День и так
+     хорошо виден по золотому кружку с числом (.daynum-badge). */
   background: #fffcf0;
-  box-shadow: inset 0 2px 0 var(--gold);
 }
 .retro-day .daynum {
   display: inline-block;
