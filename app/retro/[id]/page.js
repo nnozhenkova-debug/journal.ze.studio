@@ -8,6 +8,7 @@ import {
   listRetroHighlights,
   listRetroEnergy,
   listRetroParticipants,
+  listProfiles,
 } from '../../../lib/data';
 import { getTemplate } from '../../../lib/retro-constants';
 
@@ -18,13 +19,14 @@ export default async function RetroSessionPage({ params }) {
   if (!retro) notFound();
 
   const template = getTemplate(retro.template);
-  const [profile, notes, actionItems, highlights, energy, participants] = await Promise.all([
+  const [profile, notes, actionItems, highlights, energy, participants, teamProfiles] = await Promise.all([
     getCurrentProfile(),
     listRetroNotes(retro.id),
     listActionItems(retro.id),
     listRetroHighlights(retro.id),
     listRetroEnergy(retro.id),
     listRetroParticipants(retro.id),
+    listProfiles(),
   ]);
 
   return (
@@ -38,6 +40,7 @@ export default async function RetroSessionPage({ params }) {
           initialHighlights={highlights}
           initialEnergy={energy}
           participants={participants}
+          teamProfiles={teamProfiles}
           profile={profile}
         />
       </div>

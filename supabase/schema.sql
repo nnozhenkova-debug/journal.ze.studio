@@ -210,10 +210,12 @@ drop policy if exists "retro_participants readable by authenticated" on public.r
 create policy "retro_participants readable by authenticated"
   on public.retro_participants for select using (auth.role() = 'authenticated');
 drop policy if exists "retro_participants writable by authenticated" on public.retro_participants;
--- Присоединиться к ретро можно только от своего имени.
+-- Присоединиться к ретро можно от своего имени; добавить туда коллегу —
+-- только администратор (кнопка «+ Добавить участника» на странице ретро).
 drop policy if exists "retro_participants insertable by self" on public.retro_participants;
-create policy "retro_participants insertable by self"
-  on public.retro_participants for insert with check (user_id = auth.uid());
+drop policy if exists "retro_participants insertable by self or admin" on public.retro_participants;
+create policy "retro_participants insertable by self or admin"
+  on public.retro_participants for insert with check (user_id = auth.uid() or public.is_admin());
 drop policy if exists "retro_participants deletable by self or admin" on public.retro_participants;
 create policy "retro_participants deletable by self or admin"
   on public.retro_participants for delete using (user_id = auth.uid() or public.is_admin());
@@ -534,3 +536,41 @@ drop policy if exists "avatars deletable by owner" on storage.objects;
 create policy "avatars deletable by owner"
   on storage.objects for delete
   using (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
+
+-- =====================================================================
+-- 8. Прямые внешние ключи на public.profiles (а не только на auth.users)
+-- для колонок, которые запрашиваются через PostgREST с эмбедом вида
+-- profiles(id,display_name,avatar_url) — например в заметках ретро,
+-- пунктах действий, позитивных итогах, участниках проекта/ретро.
+--
+-- До этой миграции такие колонки ссылались только на auth.users(id).
+-- PostgREST не видит схему auth и строит связи между таблицами только
+-- по внешним ключам между ними напрямую — поэтому без FK на profiles
+-- он не находил связь "таблица → profiles" и весь запрос (в т.ч. INSERT
+-- с .select(profiles(...)) после сохранения) падал с ошибкой вида
+-- "Could not find a relationship between … and 'profiles'".
+-- Из-за этого не сохранялись новые карточки/заметки в ретро.
+--
+-- profiles.id гарантированно существует для любого auth.users.id
+-- (триггер on_auth_user_created создаёт профиль сразу при регистрации),
+-- поэтому добавление этого FK безопасно и не требует чистки данных.
+-- =====================================================================
+alter table public.project_members drop constraint if exists project_members_user_id_profiles_fkey;
+alter table public.project_members add constraint project_members_user_id_profiles_fkey
+  foreign key (user_id) references public.profiles(id) on delete cascade;
+
+alter table public.retro_participants drop constraint if exists retro_participants_user_id_profiles_fkey;
+alter table public.retro_participants add constraint retro_participants_user_id_profiles_fkey
+  foreign key (user_id) references public.profiles(id) on delete cascade;
+
+alter table public.retro_notes drop constraint if exists retro_notes_author_id_profiles_fkey;
+alter table public.retro_notes add constraint retro_notes_author_id_profiles_fkey
+  foreign key (author_id) references public.profiles(id) on delete set null;
+
+alter table public.retro_action_items drop constraint if exists retro_action_items_assignee_id_profiles_fkey;
+alter table public.retro_action_items add constraint retro_action_items_assignee_id_profiles_fkey
+  foreign key (assignee_id) references public.profiles(id) on delete set null;
+
+alter table public.retro_highlights drop constraint if exists retro_highlights_author_id_profiles_fkey;
+alter table public.retro_highlights add constraint retro_highlights_author_id_profiles_fkey
+  foreign key (author_id) references public.profiles(id) on delete set null;

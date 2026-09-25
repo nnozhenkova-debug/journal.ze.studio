@@ -92,12 +92,13 @@ function NoteColumnBody({ col, notes, drafts, setDrafts, busyColumn, errorColumn
   );
 }
 
-export default function RetroSession({ retro, template, initialNotes, initialActionItems, initialHighlights, initialEnergy, participants, profile }) {
+export default function RetroSession({ retro, template, initialNotes, initialActionItems, initialHighlights, initialEnergy, participants: initialParticipants, teamProfiles, profile }) {
   const boardType = template.boardType || 'columns';
   const [notes, setNotes] = useState(initialNotes);
   const [actionItems, setActionItems] = useState(initialActionItems || []);
   const [highlights, setHighlights] = useState(initialHighlights || []);
   const [energy, setEnergy] = useState(initialEnergy || []);
+  const [participants, setParticipants] = useState(initialParticipants || []);
   const [status, setStatus] = useState(retro.status);
   const [published, setPublished] = useState(retro.published);
   const [startedAtValue, setStartedAtValue] = useState(retro.started_at);
@@ -109,6 +110,33 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
   const [publishing, setPublishing] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [now, setNow] = useState(() => new Date());
+
+  const [participantPickerOpen, setParticipantPickerOpen] = useState(false);
+  const [pickedParticipantId, setPickedParticipantId] = useState('');
+  const [addingParticipant, setAddingParticipant] = useState(false);
+  const availableTeamProfiles = (teamProfiles || []).filter(
+    (tp) => !participants.some((p) => p.user_id === tp.id)
+  );
+
+  async function addParticipant(userId) {
+    if (!userId) return;
+    setAddingParticipant(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('retro_participants')
+      .insert({ retro_id: retro.id, user_id: userId })
+      .select('*, profiles(id,display_name,role,avatar_url)')
+      .single();
+    setAddingParticipant(false);
+    if (!error && data) {
+      setParticipants((prev) => (prev.some((p) => p.user_id === data.user_id) ? prev : [...prev, data]));
+      setPickedParticipantId('');
+      setParticipantPickerOpen(false);
+    } else if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[retro_participants insert]', error);
+    }
+  }
 
   const [stepText, setStepText] = useState('');
   const [stepAssignee, setStepAssignee] = useState(profile?.id || '');
@@ -176,6 +204,8 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
       setNotes((prev) => (prev.some((n) => n.id === data.id) ? prev : [...prev, data]));
       setDrafts((d) => ({ ...d, [columnKey]: '' }));
     } else if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[retro_notes insert]', error);
       setErrorColumn(columnKey);
     }
     setBusyColumn(null);
@@ -215,6 +245,9 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
       setActionItems((prev) => [...prev, data]);
       setStepText('');
       setStepDue('');
+    } else if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[retro_action_items insert]', error);
     }
   }
 
@@ -243,6 +276,9 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
     if (!error && data) {
       setHighlights((prev) => [...prev, data]);
       setHighlightText('');
+    } else if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[retro_highlights insert]', error);
     }
   }
 
@@ -287,6 +323,10 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
       setStartedAtValue(startedAt);
       if (profile?.id && !participants.some((p) => p.user_id === profile.id)) {
         await supabase.from('retro_participants').insert({ retro_id: retro.id, user_id: profile.id });
+        setParticipants((prev) => (prev.some((p) => p.user_id === profile.id) ? prev : [
+          ...prev,
+          { retro_id: retro.id, user_id: profile.id, profiles: { id: profile.id, display_name: profile.display_name, role: profile.role, avatar_url: profile.avatar_url } },
+        ]));
       }
     }
   }
@@ -395,6 +435,15 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
                 +
               </button>
             </div>
+            {profile?.is_admin && (
+              <button
+                type="button"
+                className="prepare-change-template"
+                onClick={() => setParticipantPickerOpen((v) => !v)}
+              >
+                {participantPickerOpen ? 'Отмена' : 'Добавить из команды'}
+              </button>
+            )}
           </div>
         )}
 
@@ -417,6 +466,25 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
           <p className="empty-card-text">Пригласите участников, чтобы начать ретро</p>
           <button type="button" className="empty-card-link" onClick={copyInviteLink}>
             {inviteCopied ? 'Ссылка скопирована' : 'Скопировать ссылку-приглашение'}
+          </button>
+        </div>
+      )}
+
+      {isLive && profile?.is_admin && participantPickerOpen && (
+        <div className="add-member-row" style={{ maxWidth: 420, border: '1px solid var(--divider)', borderRadius: 10, marginTop: 12 }}>
+          <select className="context-dropdown" value={pickedParticipantId} onChange={(e) => setPickedParticipantId(e.target.value)}>
+            <option value="">Выберите человека</option>
+            {availableTeamProfiles.map((p) => (
+              <option key={p.id} value={p.id}>{p.display_name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => addParticipant(pickedParticipantId)}
+            disabled={!pickedParticipantId || addingParticipant}
+          >
+            {addingParticipant ? '…' : 'Добавить'}
           </button>
         </div>
       )}
@@ -548,16 +616,43 @@ export default function RetroSession({ retro, template, initialNotes, initialAct
                   <span>{retro.stage_context.comment}</span>
                 </div>
               )}
-              {participants.length > 0 && (
-                <div>
-                  <div className="context-card-label" style={{ marginBottom: 8 }}>Участники</div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div className="context-card-label" style={{ marginBottom: 0 }}>Участники</div>
+                  {profile?.is_admin && (
+                    <button type="button" className="prepare-change-template" onClick={() => setParticipantPickerOpen((v) => !v)}>
+                      {participantPickerOpen ? 'Отмена' : '+ Добавить'}
+                    </button>
+                  )}
+                </div>
+                {participants.length > 0 ? (
                   <div className="retro-participants">
                     {participants.map((p, i) => (
                       <Avatar key={p.user_id} id={p.user_id} name={p.profiles?.display_name} url={p.profiles?.avatar_url} size={32} style={{ marginLeft: i === 0 ? 0 : -10, border: '2px solid var(--bg)' }} />
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  !participantPickerOpen && <span style={{ fontSize: 13, color: 'var(--gray-1)' }}>Участники ещё не добавлены</span>
+                )}
+                {profile?.is_admin && participantPickerOpen && (
+                  <div className="add-member-row" style={{ border: '1px solid var(--divider)', borderRadius: 10, padding: '10px 12px', marginTop: 10 }}>
+                    <select className="context-dropdown" value={pickedParticipantId} onChange={(e) => setPickedParticipantId(e.target.value)}>
+                      <option value="">Выберите человека</option>
+                      {availableTeamProfiles.map((p) => (
+                        <option key={p.id} value={p.id}>{p.display_name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => addParticipant(pickedParticipantId)}
+                      disabled={!pickedParticipantId || addingParticipant}
+                    >
+                      {addingParticipant ? '…' : 'Добавить'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

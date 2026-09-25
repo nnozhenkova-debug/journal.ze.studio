@@ -963,6 +963,27 @@ textarea {
   color: var(--gray-1);
   margin-top: 2px;
 }
+.member-remove {
+  background: none;
+  border: none;
+  padding: 4px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--gray-1);
+  cursor: pointer;
+}
+.member-remove:hover {
+  color: var(--crit-fg);
+}
+.add-member-row {
+  display: flex;
+  gap: 8px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--divider);
+}
+.add-member-row .context-dropdown {
+  flex: 1;
+}
 .mini-project-row {
   display: flex;
   align-items: center;

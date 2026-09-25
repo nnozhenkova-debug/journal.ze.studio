@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Header from '../../../components/Header';
-import Avatar from '../../../components/Avatar';
 import EmptyState from '../../../components/EmptyState';
+import ProjectTeamCard from '../../../components/ProjectTeamCard';
 import {
   getCurrentProfile,
   getProject,
@@ -12,6 +12,7 @@ import {
   listIssues,
   listProjectRetros,
   listProjects,
+  listProfiles,
 } from '../../../lib/data';
 import {
   PROJECT_PALETTE,
@@ -33,13 +34,14 @@ export default async function ProjectPage({ params }) {
   const project = await getProject(params.id);
   if (!project) notFound();
 
-  const [profile, stages, issues, retros, members, allProjects] = await Promise.all([
+  const [profile, stages, issues, retros, members, allProjects, teamProfiles] = await Promise.all([
     getCurrentProfile(),
     listStages(project.id),
     listIssues({ status: 'open', projectId: project.id }),
     listProjectRetros(project.id),
     getProjectMembers(project.id),
     listProjects(),
+    listProfiles(),
   ]);
 
   const responsible = await getProfileById(project.responsible_id);
@@ -175,26 +177,12 @@ export default async function ProjectPage({ params }) {
             </div>
 
             <div className="side-col">
-              <div className="side-card">
-                <div className="side-card-head">
-                  <span className="micro-label">Команда проекта</span>
-                </div>
-                {members.length === 0 ? (
-                  <div style={{ padding: '14px 22px' }}>
-                    <EmptyState>Участники ещё не добавлены.</EmptyState>
-                  </div>
-                ) : (
-                  members.map((m) => (
-                    <div key={m.id} className="member-row">
-                      <Avatar id={m.id} name={m.display_name} url={m.avatar_url} size={36} />
-                      <div>
-                        <div className="member-name">{m.display_name}</div>
-                        {m.role && <div className="member-role">{m.role}</div>}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+              <ProjectTeamCard
+                projectId={project.id}
+                initialMembers={members}
+                teamProfiles={teamProfiles}
+                isAdmin={!!profile?.is_admin}
+              />
 
               <div className="side-card">
                 <div className="side-card-head">
