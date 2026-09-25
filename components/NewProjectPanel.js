@@ -189,7 +189,7 @@ export default function NewProjectPanel({ isAdmin, profileId, projectCount }) {
             <div className="micro-label" style={{ marginBottom: 12 }}>Этапы проекта</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {stages.map((s, i) => (
-                <div key={s.key} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 14, background: '#faf8f4' }}>
+                <div key={s.key} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 14, background: 'var(--surface-warm)' }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                     <div style={{ flex: '1 1 180px' }}>
                       <label className="micro-label" style={{ display: 'block', marginBottom: 4 }}>Название этапа</label>

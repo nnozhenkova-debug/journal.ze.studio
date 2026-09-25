@@ -131,7 +131,7 @@ export default async function ProjectPage({ params }) {
                     const names = r.participantNames.map(shortName).join(', ');
                     return (
                       <Link key={r.id} href={`/retro/${r.id}`} className="table-row card-row">
-                        <span className="event-dot" style={{ background: done ? '#22a547' : '#aaaaaa' }} />
+                        <span className="event-dot" style={{ background: done ? 'var(--success)' : 'var(--gray-1)' }} />
                         <div>
                           <div className="row-title">{RETRO_STATUS_LABEL[r.status] || r.status} · {shortTitle}</div>
                           <div className="row-sub">

@@ -98,6 +98,8 @@ export default function FreeBoard({ retroId, initialBoardData, readOnly }) {
         excalidrawAPI={(api) => setExcalidrawAPI(api)}
         initialData={{
           elements: initialBoardData?.elements || [],
+          // Excalidraw needs a literal hex for its canvas — can't resolve a CSS var here.
+          // Mirrors --surface-warm in app/globals.css; keep the two in sync by hand.
           appState: { viewBackgroundColor: '#faf8f4' },
           scrollToContent: true,
         }}

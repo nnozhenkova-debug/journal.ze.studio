@@ -88,7 +88,7 @@ export default function EventsBoard({ events, projects }) {
                 const href = event.project_id ? `/projects/${event.project_id}` : '/events';
                 return (
                   <Link key={event.id} href={href} className="table-row card-row">
-                    <span className="event-dot" style={{ background: EVENT_TYPE_DOT[event.type] || '#aaaaaa' }} />
+                    <span className="event-dot" style={{ background: EVENT_TYPE_DOT[event.type] || 'var(--gray-1)' }} />
                     <div>
                       <div className="row-title">{event.title}</div>
                       <div className="row-sub">

@@ -8,7 +8,7 @@ import {
   listEvents,
   listRetros,
 } from '../lib/data';
-import { RETRO_TEMPLATES, SEVERITY_LABEL, SEVERITY_PILL_CLASS, PROJECT_PALETTE } from '../lib/retro-constants';
+import { RETRO_TEMPLATES, SEVERITY_LABEL, SEVERITY_PILL_CLASS, PROJECT_PALETTE, EVENT_TYPE_DOT } from '../lib/retro-constants';
 import { monthYearParts, monthPrepositional, buildMonthWeeks, isSameDay, daysAgoLabel } from '../lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -249,7 +249,7 @@ export default async function Page({ searchParams }) {
               <div className="card">
                 {events.map((event) => (
                   <div key={event.id} className="table-row card-row">
-                    <span className="event-dot" style={{ background: event.type === 'issue_created' ? '#c0351a' : event.type.includes('completed') || event.type.includes('resolved') ? '#22a547' : '#aaa' }} />
+                    <span className="event-dot" style={{ background: EVENT_TYPE_DOT[event.type] || 'var(--gray-1)' }} />
                     <div>
                       <div className="row-title">{event.title}</div>
                       {event.subtitle && <div className="row-sub">{event.subtitle}</div>}
