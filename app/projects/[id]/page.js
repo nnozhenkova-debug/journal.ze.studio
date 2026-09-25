@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Header from '../../../components/Header';
 import EmptyState from '../../../components/EmptyState';
 import ProjectTeamCard from '../../../components/ProjectTeamCard';
+import DeleteProjectButton from '../../../components/DeleteProjectButton';
 import {
   getCurrentProfile,
   getProject,
@@ -11,7 +12,6 @@ import {
   listStages,
   listIssues,
   listProjectRetros,
-  listProjects,
   listProfiles,
 } from '../../../lib/data';
 import {
@@ -34,13 +34,12 @@ export default async function ProjectPage({ params }) {
   const project = await getProject(params.id);
   if (!project) notFound();
 
-  const [profile, stages, issues, retros, members, allProjects, teamProfiles] = await Promise.all([
+  const [profile, stages, issues, retros, members, teamProfiles] = await Promise.all([
     getCurrentProfile(),
     listStages(project.id),
     listIssues({ status: 'open', projectId: project.id }),
     listProjectRetros(project.id),
     getProjectMembers(project.id),
-    listProjects(),
     listProfiles(),
   ]);
 
@@ -54,7 +53,6 @@ export default async function ProjectPage({ params }) {
     .sort((a, b) => new Date(a.end_date) - new Date(b.end_date))[0]?.end_date || null;
 
   const pal = PROJECT_PALETTE[project.color_key] || PROJECT_PALETTE.slate;
-  const otherProjects = allProjects.filter((p) => p.id !== project.id);
 
   return (
     <div>
@@ -67,6 +65,7 @@ export default async function ProjectPage({ params }) {
               {project.name}
               <span style={{ color: 'var(--gold)' }}>.</span>
             </h1>
+            <DeleteProjectButton projectId={project.id} projectName={project.name} isAdmin={!!profile?.is_admin} />
           </div>
           <p className="h1-sub">
             {project.client && <>Клиент: {project.client} · </>}
@@ -183,28 +182,6 @@ export default async function ProjectPage({ params }) {
                 teamProfiles={teamProfiles}
                 isAdmin={!!profile?.is_admin}
               />
-
-              <div className="side-card">
-                <div className="side-card-head">
-                  <span className="micro-label">Другие проекты</span>
-                </div>
-                {otherProjects.length === 0 ? (
-                  <div style={{ padding: '14px 22px' }}>
-                    <EmptyState>Других проектов нет.</EmptyState>
-                  </div>
-                ) : (
-                  otherProjects.map((p) => {
-                    const ppal = PROJECT_PALETTE[p.color_key] || PROJECT_PALETTE.slate;
-                    return (
-                      <Link key={p.id} href={`/projects/${p.id}`} className="mini-project-row">
-                        <span className="mini-project-swatch" style={{ background: ppal.bg, borderColor: ppal.border }} />
-                        <span className="mini-project-name">{p.name}</span>
-                        <span className="row-meta">→</span>
-                      </Link>
-                    );
-                  })
-                )}
-              </div>
             </div>
           </div>
         </div>

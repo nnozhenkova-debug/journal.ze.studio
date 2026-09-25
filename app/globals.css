@@ -245,6 +245,14 @@ textarea {
 .btn-secondary:hover {
   border-color: var(--near);
 }
+.btn-danger {
+  background: var(--err-bg);
+  border-color: var(--err-border);
+  color: var(--err-fg);
+}
+.btn-danger:hover {
+  filter: brightness(0.96);
+}
 .btn-sm {
   padding: 9px 16px;
   font-size: 13px;
@@ -877,6 +885,35 @@ textarea {
   font-size: 13px;
   color: var(--gray-2);
   margin-top: var(--space-2);
+}
+.project-delete-trigger {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--gray-1);
+  cursor: pointer;
+}
+.project-delete-trigger:hover {
+  color: var(--err-fg);
+}
+.delete-project-confirm {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--err-bg);
+  border: 1px solid var(--err-border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--err-fg);
+}
+.delete-project-confirm-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
 }
 .stat-grid {
   margin-top: 36px;
@@ -1726,6 +1763,13 @@ textarea {
   color: var(--gray-2);
   font-size: 13px;
   margin: 0 0 20px;
+}
+.err {
+  background: var(--err-bg);
+  color: var(--err-fg);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
 }
 .login-card .err {
   background: var(--err-bg);
