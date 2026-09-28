@@ -4,6 +4,7 @@ import Header from '../../../components/Header';
 import EmptyState from '../../../components/EmptyState';
 import ProjectTeamCard from '../../../components/ProjectTeamCard';
 import DeleteProjectButton from '../../../components/DeleteProjectButton';
+import EstimateSync from '../../../components/EstimateSync';
 import {
   getCurrentProfile,
   getProject,
@@ -176,6 +177,7 @@ export default async function ProjectPage({ params }) {
             </div>
 
             <div className="side-col">
+              {profile?.is_admin && <EstimateSync projectId={project.id} syncedAt={project.estimate_synced_at} />}
               <ProjectTeamCard
                 projectId={project.id}
                 initialMembers={members}

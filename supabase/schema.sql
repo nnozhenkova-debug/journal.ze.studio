@@ -577,3 +577,31 @@ alter table public.retro_action_items add constraint retro_action_items_assignee
 alter table public.retro_highlights drop constraint if exists retro_highlights_author_id_profiles_fkey;
 alter table public.retro_highlights add constraint retro_highlights_author_id_profiles_fkey
   foreign key (author_id) references public.profiles(id) on delete set null;
+
+-- =====================================================================
+-- 9. Синхронизация со сметой проекта (Google Sheets → CSV, вручную
+-- загружается админом на странице проекта кнопкой «Обновить из сметы»).
+--
+-- В projects храним последние итоги по деньгам из сметы (строка «Общая
+-- стоимость реализации»). В project_stages переиспользуем уже
+-- существующие planned_minutes/actual_minutes — при синхронизации они
+-- перезаписываются часами из сметы ТОЛЬКО у явно сопоставленных админом
+-- этапов (estimate_roman хранит, какой этап сметы ("I", "II", …)
+-- сопоставлен с этой строкой — при повторной синхронизации сопоставление
+-- не нужно вводить заново). В issues помечаем автоматически созданные
+-- по превышению часов проблемы, чтобы при повторном обновлении не
+-- плодить дубликаты, а обновлять существующую запись.
+-- =====================================================================
+alter table public.projects add column if not exists estimate_planned_cost numeric;
+alter table public.projects add column if not exists estimate_actual_cost numeric;
+alter table public.projects add column if not exists estimate_forecast_cost numeric;
+alter table public.projects add column if not exists estimate_margin_percent numeric;
+alter table public.projects add column if not exists estimate_synced_at timestamptz;
+
+alter table public.project_stages add column if not exists estimate_roman text;
+
+alter table public.issues add column if not exists source text not null default 'manual'
+  check (source in ('manual', 'estimate_sync'));
+alter table public.issues add column if not exists meta jsonb;
+create unique index if not exists issues_estimate_meta_key_idx on public.issues ((meta->>'key'))
+  where source = 'estimate_sync' and status = 'open';
